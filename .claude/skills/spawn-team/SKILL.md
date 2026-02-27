@@ -120,10 +120,30 @@ TeamCreate로 팀을 생성한다.
 프롬프트에 반드시 포함:
 - 담당 파일 범위 (구체적 glob 패턴)
 - **팀 전체 멤버 목록** (피어 직접 통신용): `팀 멤버: auth-be, tasks-be, unit-tester, ...`
-- **서브에이전트 탐색 지시** (규모 기반 동적 결정):
-  - 소규모 (담당 파일 ≤ 5개): 생략 — "담당 파일이 적으니 직접 Read하세요."
-  - 중규모 (담당 파일 6~15개): Explore 서브에이전트 + Grep/ast-grep 병행
-  - 대규모 (담당 파일 16+개): 필수 — Explore → ast-grep 구조 파악 → 필요 파일만 Read
+- **서브에이전트 탐색 지시** (규모 기반, 프롬프트에 아래 텍스트 중 하나를 직접 삽입):
+
+  [소규모 — 담당 파일 ≤ 5개 시 삽입]:
+  ```
+  담당 파일이 적으므로 직접 Read 후 구현하세요. Grep으로 타입 확인 후 진행.
+  ```
+
+  [중규모 — 담당 파일 6~15개 시 삽입]:
+  ```
+  구현 전 이 순서로 파악하세요:
+  1. Task(subagent_type="Explore")로 담당 범위 스캔 (파일 목록, 주요 export)
+  2. Grep 또는 sg(ast-grep)으로 관련 타입/인터페이스 검색
+  3. 필요한 파일만 Read
+  ```
+
+  [대규모 — 담당 파일 16+개 시 삽입]:
+  ```
+  구현 전 반드시 이 순서로 파악하세요 (순차 읽기 금지):
+  1. Task(subagent_type="Explore")로 담당 범위 전체 스캔
+  2. sg(ast-grep)으로 구조 파악: 인터페이스, export 함수, 클래스 목록
+     예: sg -p 'export function $F($_$$)' --lang ts src/server/
+  3. Grep으로 텍스트 검색 보완
+  4. 실제 수정할 파일만 Read
+  ```
 
 ### 4-3. 에이전트 프롬프트
 
@@ -137,18 +157,7 @@ TeamCreate로 팀을 생성한다.
 {file-list}
 
 ## 코드 탐색 전략 (토큰 효율화)
-{explore-strategy}  ← Leader가 규모에 따라 아래 중 하나를 삽입:
-
-[소규모] 담당 파일이 적으니 직접 Read하세요. Grep으로 타입 확인 후 진행.
-
-[중/대규모] 구현 전 이 순서로 파악한다:
-1. Task(subagent_type="Explore")로 담당 범위 빠르게 스캔
-   예: "src/server/services/auth* 파일 목록과 주요 export/함수 시그니처 파악해줘"
-2. 구조 파악이 필요하면 ast-grep(sg) 우선, 텍스트 검색은 Grep:
-   - 인터페이스/함수 시그니처: sg -p 'interface $NAME { $$$}' --lang ts src/shared/
-   - export 함수 목록: sg -p 'export const $F = $_' --lang ts src/server/
-   - 타입 검색: Grep("type TaskStatus|TaskPriority", "src/shared/")
-3. 파악한 파일 중 실제 수정할 파일만 Read (전체 순차 읽기 금지)
+{explore-strategy}
 
 ## 구현 규칙
 - 담당 파일 범위만 수정. 다른 도메인 파일 절대 수정 금지.
@@ -174,18 +183,7 @@ TeamCreate로 팀을 생성한다.
 {file-list}
 
 ## 코드 탐색 전략 (토큰 효율화)
-{explore-strategy}  ← Leader가 규모에 따라 삽입
-
-[소규모] 직접 Read 후 진행. Grep으로 API 타입 확인.
-
-[중/대규모] 구현 전 이 순서로 파악한다:
-1. Task(subagent_type="Explore")로 담당 범위 빠르게 스캔
-   예: "src/client/pages/Dashboard* 컴포넌트 구조와 사용 중인 hooks/types 파악해줘"
-2. 구조 파악은 ast-grep(sg) 우선, 텍스트 검색은 Grep:
-   - 컴포넌트 props 타입: sg -p 'interface $Props { $$$}' --lang tsx src/client/
-   - hook export 목록: sg -p 'export function $F($_$$)' --lang ts src/client/hooks/
-   - API 클라이언트: Grep("export.*fetch|useQuery|useMutation", "src/client/")
-3. 파악한 파일 중 실제 수정할 파일만 Read
+{explore-strategy}
 
 ## 구현 규칙
 - 담당 파일 범위만 수정. 다른 도메인 파일 절대 수정 금지.
@@ -211,17 +209,7 @@ TeamCreate로 팀을 생성한다.
 역할: 각 모듈/함수가 정상 작동하는지 단위 테스트 작성 및 실행.
 
 ## 코드 탐색 전략 (토큰 효율화)
-{explore-strategy}  ← Leader가 규모에 따라 삽입
-
-[소규모] 직접 Read 후 테스트 작성.
-
-[중/대규모] 테스트 대상 파악 시:
-1. Task(subagent_type="Explore")로 테스트 대상 파일 구조 스캔
-   예: "auth 도메인 서비스/컨트롤러 파일의 public 함수 목록 파악해줘"
-2. ast-grep으로 테스트할 함수/클래스 목록 추출:
-   - export 함수: sg -p 'export function $F($_$$)' --lang ts src/server/services/
-   - export 클래스: sg -p 'export class $C { $$$}' --lang ts src/server/
-3. 실제 테스트할 함수만 Read (전체 읽기 금지)
+{explore-strategy}
 
 ## 테스트 규칙
 - Leader 지시 → 해당 코드 단위 테스트 작성 및 실행.
@@ -248,16 +236,7 @@ TeamCreate로 팀을 생성한다.
 역할: 전체 유저 플로우 / API 흐름이 올바르게 동작하는지 시나리오 기반 테스트.
 
 ## 코드 탐색 전략 (토큰 효율화)
-{explore-strategy}  ← Leader가 규모에 따라 삽입
-
-[소규모] 직접 Read 후 시나리오 설계.
-
-[중/대규모] 시나리오 설계 전:
-1. Task(subagent_type="Explore")로 전체 라우트/API 엔드포인트 목록 파악
-2. ast-grep으로 라우트 구조 추출:
-   - sg -p 'router.$METHOD($PATH, $_$$)' --lang ts src/server/routes/
-   - Grep("app.use|router.get|router.post", "src/server/")
-3. 시나리오에 필요한 파일만 Read
+{explore-strategy}
 
 ## 테스트 규칙
 - 전체 구현 완료 후 Leader 지시로 시작.
@@ -276,15 +255,7 @@ TeamCreate로 팀을 생성한다.
 모든 BE + FE 코드를 담당합니다.
 
 ## 코드 탐색 전략 (토큰 효율화)
-{explore-strategy}  ← Leader가 규모에 따라 삽입
-
-[소규모] 직접 Read 후 구현. (파일 수 적으므로 Explore 불필요)
-
-[중/대규모] 구현 전:
-1. Task(subagent_type="Explore")로 프로젝트 전체 구조 파악
-   예: "src/ 디렉토리 구조, 기존 파일 목록, 주요 export 파악해줘"
-2. Grep으로 관련 타입/인터페이스 검색
-3. 필요한 파일만 Read
+{explore-strategy}
 
 ## 구현 규칙
 - 구현 완료 → TaskUpdate 상태 변경 + Leader에게 보고.
@@ -324,10 +295,27 @@ Codex: 활성화 (머지 전 교차 리뷰)
   → Leader가 unit-tester에게 테스트 지시
   → unit-tester 결과:
      PASS → 다음 에이전트 or 다음 단계
-     FAIL → Leader에게 리포트
-       → Leader가 해당 에이전트에게 수정 지시 (리포트 포함)
+     FAIL → Leader에게 리포트 + 해당 에이전트에게 직접 SendMessage
        → 에이전트 수정 → unit-tester 재검증
-       → 2~3회 반복 후에도 실패 → Leader 직접 개입 or 사람에게 에스컬레이션
+       → 2회 반복 후에도 FAIL → Leader가 debugger 온디맨드 스폰:
+           Task(subagent_type="general-purpose", name="debugger", model="haiku",
+                run_in_background=false)
+           프롬프트: "다음 버그를 분석하고 원인과 수정 방법을 제시하세요 (코드 수정 금지):
+                     {unit-tester 리포트 전문}"
+           debugger 완료 → 결과를 해당 에이전트에게 전달 → 에이전트 수정
+           debugger는 task 완료 시 자동 종료 (팀 멤버 아님)
+```
+
+### 6-2-b. 빌드 실패 시
+```
+빌드/컴파일 오류 감지 (에이전트 보고 or CI 실패)
+  → Leader가 build-fixer 온디맨드 스폰:
+      Task(subagent_type="general-purpose", name="build-fixer", model="haiku",
+           run_in_background=false)
+      프롬프트: "다음 빌드 오류를 분석하고 수정하세요:
+                {오류 메시지 전문}
+                수정 가능한 파일: {해당 도메인 파일 범위}"
+      build-fixer 완료 → 자동 종료
 ```
 
 ### 6-3. 전체 통과 후
