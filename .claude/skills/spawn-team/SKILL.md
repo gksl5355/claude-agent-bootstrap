@@ -120,6 +120,10 @@ TeamCreate로 팀을 생성한다.
 프롬프트에 반드시 포함:
 - 담당 파일 범위 (구체적 glob 패턴)
 - **팀 전체 멤버 목록** (피어 직접 통신용): `팀 멤버: auth-be, tasks-be, unit-tester, ...`
+- **서브에이전트 탐색 지시** (규모 기반 동적 결정):
+  - 소규모 (담당 파일 ≤ 5개): 생략 — "담당 파일이 적으니 직접 Read하세요."
+  - 중규모 (담당 파일 6~15개): 선택적 — "첫 구현 시 Explore 서브에이전트로 전체 구조 파악 후 진행하세요."
+  - 대규모 (담당 파일 16+개): 필수 — "반드시 Explore 서브에이전트로 스캔 먼저. 직접 순차 읽기 금지."
 
 ### 4-3. 에이전트 프롬프트
 
@@ -133,10 +137,14 @@ TeamCreate로 팀을 생성한다.
 {file-list}
 
 ## 코드 탐색 전략 (토큰 효율화)
-구현 전 반드시 이 순서로 파악한다:
+{explore-strategy}  ← Leader가 규모에 따라 아래 중 하나를 삽입:
+
+[소규모] 담당 파일이 적으니 직접 Read하세요. Grep으로 타입 확인 후 진행.
+
+[중/대규모] 구현 전 이 순서로 파악한다:
 1. Task(subagent_type="Explore")로 담당 범위 빠르게 스캔
    예: "src/server/services/auth* 파일 목록과 주요 export/함수 시그니처 파악해줘"
-2. Grep으로 관련 인터페이스/타입 검색 (인터페이스 충돌 방지)
+2. Grep으로 관련 인터페이스/타입 검색
    예: Grep("interface Task|type TaskStatus", "src/shared/")
 3. 파악한 파일 중 실제 수정할 파일만 Read (전체 순차 읽기 금지)
 
@@ -164,7 +172,11 @@ TeamCreate로 팀을 생성한다.
 {file-list}
 
 ## 코드 탐색 전략 (토큰 효율화)
-구현 전 반드시 이 순서로 파악한다:
+{explore-strategy}  ← Leader가 규모에 따라 삽입
+
+[소규모] 직접 Read 후 진행. Grep으로 API 타입 확인.
+
+[중/대규모] 구현 전 이 순서로 파악한다:
 1. Task(subagent_type="Explore")로 담당 범위 빠르게 스캔
    예: "src/client/pages/Dashboard* 컴포넌트 구조와 사용 중인 hooks/types 파악해줘"
 2. Grep으로 공유 타입/API 클라이언트 검색
@@ -195,7 +207,11 @@ TeamCreate로 팀을 생성한다.
 역할: 각 모듈/함수가 정상 작동하는지 단위 테스트 작성 및 실행.
 
 ## 코드 탐색 전략 (토큰 효율화)
-테스트 대상 파악 시:
+{explore-strategy}  ← Leader가 규모에 따라 삽입
+
+[소규모] 직접 Read 후 테스트 작성.
+
+[중/대규모] 테스트 대상 파악 시:
 1. Task(subagent_type="Explore")로 테스트 대상 파일 구조 스캔
    예: "auth 도메인 서비스/컨트롤러 파일의 public 함수 목록 파악해줘"
 2. Grep으로 export된 함수/클래스만 타겟 검색
@@ -226,7 +242,11 @@ TeamCreate로 팀을 생성한다.
 역할: 전체 유저 플로우 / API 흐름이 올바르게 동작하는지 시나리오 기반 테스트.
 
 ## 코드 탐색 전략 (토큰 효율화)
-시나리오 설계 전:
+{explore-strategy}  ← Leader가 규모에 따라 삽입
+
+[소규모] 직접 Read 후 시나리오 설계.
+
+[중/대규모] 시나리오 설계 전:
 1. Task(subagent_type="Explore")로 전체 라우트/API 엔드포인트 목록 파악
 2. Grep으로 핵심 흐름 연결고리 검색 (예: "router.post|app.use")
 3. 시나리오에 필요한 파일만 Read
@@ -248,7 +268,11 @@ TeamCreate로 팀을 생성한다.
 모든 BE + FE 코드를 담당합니다.
 
 ## 코드 탐색 전략 (토큰 효율화)
-구현 전:
+{explore-strategy}  ← Leader가 규모에 따라 삽입
+
+[소규모] 직접 Read 후 구현. (파일 수 적으므로 Explore 불필요)
+
+[중/대규모] 구현 전:
 1. Task(subagent_type="Explore")로 프로젝트 전체 구조 파악
    예: "src/ 디렉토리 구조, 기존 파일 목록, 주요 export 파악해줘"
 2. Grep으로 관련 타입/인터페이스 검색
