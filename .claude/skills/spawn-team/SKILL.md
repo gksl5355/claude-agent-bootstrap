@@ -2,7 +2,7 @@
 name: spawn-team
 description: This skill should be used when the user asks to "create a team", "spawn a team", "start team agents", "set up a dev team", or wants to begin parallel development with Claude Code Agent Teams. Analyzes the project, detects domains, and spawns an optimized team of agents dynamically.
 argument-hint: "[project path]"
-allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(wc *), Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage, AskUserQuestion
+allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(wc *), Bash(sg *), Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage, AskUserQuestion
 ---
 
 # Spawn Team
@@ -122,8 +122,8 @@ TeamCreate로 팀을 생성한다.
 - **팀 전체 멤버 목록** (피어 직접 통신용): `팀 멤버: auth-be, tasks-be, unit-tester, ...`
 - **서브에이전트 탐색 지시** (규모 기반 동적 결정):
   - 소규모 (담당 파일 ≤ 5개): 생략 — "담당 파일이 적으니 직접 Read하세요."
-  - 중규모 (담당 파일 6~15개): 선택적 — "첫 구현 시 Explore 서브에이전트로 전체 구조 파악 후 진행하세요."
-  - 대규모 (담당 파일 16+개): 필수 — "반드시 Explore 서브에이전트로 스캔 먼저. 직접 순차 읽기 금지."
+  - 중규모 (담당 파일 6~15개): Explore 서브에이전트 + Grep/ast-grep 병행
+  - 대규모 (담당 파일 16+개): 필수 — Explore → ast-grep 구조 파악 → 필요 파일만 Read
 
 ### 4-3. 에이전트 프롬프트
 
@@ -144,8 +144,10 @@ TeamCreate로 팀을 생성한다.
 [중/대규모] 구현 전 이 순서로 파악한다:
 1. Task(subagent_type="Explore")로 담당 범위 빠르게 스캔
    예: "src/server/services/auth* 파일 목록과 주요 export/함수 시그니처 파악해줘"
-2. Grep으로 관련 인터페이스/타입 검색
-   예: Grep("interface Task|type TaskStatus", "src/shared/")
+2. 구조 파악이 필요하면 ast-grep(sg) 우선, 텍스트 검색은 Grep:
+   - 인터페이스/함수 시그니처: sg -p 'interface $NAME { $$$}' --lang ts src/shared/
+   - export 함수 목록: sg -p 'export const $F = $_' --lang ts src/server/
+   - 타입 검색: Grep("type TaskStatus|TaskPriority", "src/shared/")
 3. 파악한 파일 중 실제 수정할 파일만 Read (전체 순차 읽기 금지)
 
 ## 구현 규칙
@@ -179,8 +181,10 @@ TeamCreate로 팀을 생성한다.
 [중/대규모] 구현 전 이 순서로 파악한다:
 1. Task(subagent_type="Explore")로 담당 범위 빠르게 스캔
    예: "src/client/pages/Dashboard* 컴포넌트 구조와 사용 중인 hooks/types 파악해줘"
-2. Grep으로 공유 타입/API 클라이언트 검색
-   예: Grep("export.*api|fetchTasks|useAuth", "src/client/")
+2. 구조 파악은 ast-grep(sg) 우선, 텍스트 검색은 Grep:
+   - 컴포넌트 props 타입: sg -p 'interface $Props { $$$}' --lang tsx src/client/
+   - hook export 목록: sg -p 'export function $F($_$$)' --lang ts src/client/hooks/
+   - API 클라이언트: Grep("export.*fetch|useQuery|useMutation", "src/client/")
 3. 파악한 파일 중 실제 수정할 파일만 Read
 
 ## 구현 규칙
@@ -214,7 +218,9 @@ TeamCreate로 팀을 생성한다.
 [중/대규모] 테스트 대상 파악 시:
 1. Task(subagent_type="Explore")로 테스트 대상 파일 구조 스캔
    예: "auth 도메인 서비스/컨트롤러 파일의 public 함수 목록 파악해줘"
-2. Grep으로 export된 함수/클래스만 타겟 검색
+2. ast-grep으로 테스트할 함수/클래스 목록 추출:
+   - export 함수: sg -p 'export function $F($_$$)' --lang ts src/server/services/
+   - export 클래스: sg -p 'export class $C { $$$}' --lang ts src/server/
 3. 실제 테스트할 함수만 Read (전체 읽기 금지)
 
 ## 테스트 규칙
@@ -248,7 +254,9 @@ TeamCreate로 팀을 생성한다.
 
 [중/대규모] 시나리오 설계 전:
 1. Task(subagent_type="Explore")로 전체 라우트/API 엔드포인트 목록 파악
-2. Grep으로 핵심 흐름 연결고리 검색 (예: "router.post|app.use")
+2. ast-grep으로 라우트 구조 추출:
+   - sg -p 'router.$METHOD($PATH, $_$$)' --lang ts src/server/routes/
+   - Grep("app.use|router.get|router.post", "src/server/")
 3. 시나리오에 필요한 파일만 Read
 
 ## 테스트 규칙
