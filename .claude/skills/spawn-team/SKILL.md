@@ -527,63 +527,9 @@ Step 1-2에서 구조 타입 [C] (불명확/레거시) 판정 시:
 - 합계 8-9점 또는 하드 트리거 → 사용자 최종 Judge (AskUserQuestion)
 - 영향범위=3 또는 irreversible=true → 점수 무관 하드 트리거 적용
 
-### 참여자
+→ **조건 충족 시 debate 스킬의 프로토콜을 따른다.**
 
-- **Proposer**: Leader — 설계안 초안 작성
-- **Critic**: Codex xhigh — 적대적 검토 (read-only)
-- **Judge**: Leader(6-7점) / 사용자(8-9점 또는 하드 트리거)
-
-### Debate 실행 (최대 2라운드 + 예외 1회)
-
-```bash
-# 설계안 임시 파일로 저장 (인라인 문자열 깨짐 방지)
-cat > /tmp/debate-input.md << 'DEBATE_EOF'
-## 결정 대상: {무엇을 결정하는가}
-## 컨텍스트: {프로젝트 현황, 기존 아키텍처}
-## 제안 방향: {채택 방향과 근거}
-## 고려한 대안: {기각 이유}
-## 비기능 요구: 성능 / 비용 한계 / 보안 / SLO / 롤백 기준
-## 위험도: 불확실성 {1-3} / 영향범위 {1-3} / 복잡도 {1-3} / 합계 {X}/9
-## 우려사항: {스스로 의심되는 부분}
-DEBATE_EOF
-
-codex exec -c model_reasoning_effort=xhigh -s read-only \
-  "$(cat /tmp/debate-input.md)" 2>&1
-```
-
-Codex 출력 강제 포맷 (미준수 시 1회 재질의):
-```
-[BLOCK|TRADEOFF|ACCEPT] {요약}
-- 문제: {구체적 문제}
-- 영향: {발생 가능한 결과}
-- 근거: {사실/제약/원칙 — 의견만이면 TRADEOFF 이하}
-- 수정안: {구체적 대안}
-- 미반영 리스크: {무시 시 결과}
-```
-
-**라운드 처리:**
-- Round 1: [BLOCK] 없음 → 조기 종료 / [BLOCK] 있음 → Round 2
-- Round 2: [BLOCK] 해소 → Judge 결정 / [BLOCK] 지속 → AskUserQuestion
-- 예외 Round 3: 새 증거(제약/사실 변경)가 있을 때만. 그 외 반복 금지.
-
-**BLOCK 기각 이견 시** → 자동 사용자 에스컬레이션 (Leader 단독 결정 금지)
-
-### 출력 형식
-
-```
-## Debate 결과 (Round N)
-채택 결정: {최종 선택}
-위험도: {X}/9 | irreversible: {true/false} → Judge: Leader/사용자
-
-수용된 비판:
-- [{분류}] {비판} → {반영 방법} | 검증 계획: {언제 어떻게}
-
-반박한 비판:
-- [{분류}] {비판} → {반박 근거}
-
-미결 TRADEOFF (감수 사유 명시):
-- [{분류}] {내용} → {감수 이유}
-```
+**상세 프로토콜**: `.claude/skills/debate/SKILL.md` 참조.
 
 ## 운영 규칙
 

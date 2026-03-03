@@ -5,7 +5,7 @@
 프로젝트를 분석해 도메인 기반 팀을 동적 구성하고, 피드백 루프로 완료까지 운영하는 오케스트레이터.
 
 **환경**: Claude Max (Agent Teams, teammateMode: tmux)
-**구현체**: `.claude/skills/spawn-team/SKILL.md`
+**구현체**: `.claude/skills/spawn-team/SKILL.md`, `.claude/skills/debate/SKILL.md`
 **외부 의존**: 없음 (필요한 것만 선택적으로 가져옴)
 
 ### omc 관계
@@ -269,6 +269,9 @@ SKILL.md 수정:
 - [x] 머지 전 경계 위반 체크 (git diff --name-only)
 - [x] Plan Mode 승인 게이트 (에이전트 3명+)
 - [x] Debate Mode (Codex xhigh 적대적 검토, 2라운드 상한)
+- [x] Debate 독립 스킬 분리 (`.claude/skills/debate/SKILL.md`, 단독 `/debate` 호출 가능)
+- [x] Round 2 범위 제한 (기존 BLOCK 해소 검증만, 신규 이슈 → TRADEOFF 문서화)
+- [x] 설계안 토큰 효율 규칙 (1500자 목표, 비기능 요구 한 줄 요약)
 - [x] 모델 라우팅 기준 구체화 (SKILL.md Step 2 모델 선택 기준 테이블 추가)
 - [x] 도메인 간 공유 타입/스키마 변경 플로우 (SKILL.md 프로토콜 추가)
 - [x] flaky test 처리 — 재실행 1회 로직 SKILL.md 종료 조건에 추가
