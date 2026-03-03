@@ -1,0 +1,22 @@
+# Auto-memory (user-specific, persists across sessions)
+memory/
+
+# Internal planning & design notes
+plan.md
+debate-design-final.md
+critique.md
+
+# Research files (local reference only)
+RESEARCH_*.md
+PLAN_*.md
+IMPLEMENTATION_SNIPPETS.md
+QUICKREF_*.md
+SOURCES.md
+RESEARCH_INDEX.md
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
