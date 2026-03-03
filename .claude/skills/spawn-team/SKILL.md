@@ -17,27 +17,58 @@ allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(
 
 package.json, requirements.txt, go.mod, Cargo.toml 등에서 기술 스택 파악.
 
-### 1-2. 도메인 감지
+### 1-2. 도메인 감지 + 구조 타입 판단
 
-BE 도메인 감지:
-- `routes/`, `controllers/`, `services/`, `handlers/` 내 파일명으로 추출
-- 예: routes/auth.ts, routes/tasks.ts → 도메인: auth, tasks
+**도메인 감지:**
 
-FE 도메인 감지:
-- `pages/`, `views/` 내 파일명 또는 폴더명으로 추출
-- `components/` 는 보조 (도메인 판단에 직접 사용하지 않음)
-- 예: pages/LoginPage.tsx, pages/DashboardPage.tsx → 도메인: auth, dashboard
+BE: `routes/`, `controllers/`, `services/`, `handlers/` 내 파일명으로 추출
+FE: `pages/`, `views/` 내 파일명/폴더명으로 추출
 
-**감지 실패 시** (모노레포, 비표준 구조, 위 패턴 없음):
-- AskUserQuestion으로 도메인 직접 지정 요청
-- 또는 fullstack 1명이 전체 담당 (사용자 선택)
+**→ 감지 후 즉시 구조 타입 판단 (소유 모델 결정):**
 
-### 1-3. 도메인 규모 판단
+```
+[A] 도메인 디렉토리 구조 ← 기본 경로
+    src/auth/**, src/products/** 처럼 도메인별 디렉토리가 있거나
+    신규 프로젝트라 그렇게 만들 수 있는 경우
+    → 에이전트가 디렉토리 단위 소유 (경계 = 디렉토리)
+
+[B] 평면 구조 ← 폴백
+    src/services/auth.ts, src/routes/auth.ts 처럼 기능별 디렉토리
+    → 파일 레벨 MECE 매니페스트 사용 (각 파일을 에이전트에 명시 할당)
+
+[C] 구조 불명확 / 레거시 ← architect-agent 온디맨드 스폰
+    도메인 경계가 파악 불가하거나 파일이 도메인 구분 없이 혼재
+    → architect-agent가 먼저 디렉토리 구조 제안 + 리팩터 후 [A]로 진행
+```
+
+**감지 실패 시** (모노레포, 비표준 구조):
+- AskUserQuestion으로 도메인 + 소유 모델 직접 지정 요청
+- 또는 fullstack 1명이 전체 담당
+
+### 1-3. 도메인 규모 판단 → 소유권 매니페스트 생성
 
 각 도메인의 파일 수를 세어 규모 판단:
 - 소 도메인 (파일 1~3개) → 인접 도메인과 병합 후보
 - 중 도메인 (파일 4~9개) → 독립 에이전트 1명
 - 대 도메인 (파일 10+개) → 독립 에이전트 1명 (필요 시 분할 제안)
+
+**Step 1의 최종 출력: 소유권 매니페스트 (구조 타입에 따라 형식 다름)**
+
+```
+[A] 도메인 디렉토리:
+  products-be: src/products/**
+  orders-be:   src/orders/**
+  공유(Leader): src/types/**, src/utils/**
+
+[B] 평면 구조:
+  products-be: src/services/products.ts, src/routes/products.ts
+  orders-be:   src/services/orders.ts, src/routes/orders.ts
+  공유(Leader): src/types/index.ts
+```
+
+- 각 파일/디렉토리는 정확히 1개 항목에만 귀속
+- 공유 파일/디렉토리는 Leader 소유 → 에이전트 수정 시 Leader 승인 필요
+- 이 매니페스트가 Step 3 확인 → Step 4 에이전트 프롬프트로 그대로 흘러감
 
 ## Step 2: 팀 구성 제안 (동적)
 
@@ -119,8 +150,15 @@ TeamCreate로 팀을 생성한다.
 - `team_name: "{team-name}"`
 - `name: "{domain}-{role}"` (예: auth-be, dashboard-fe, unit-tester)
 - `model: "sonnet"` (개발자) 또는 `"haiku"` (테스터)
-- `isolation: "worktree"` (isolated 모드 시)
+- `isolation: "worktree"` (isolated 모드 시) ← **git 저장소 필수. 비git 프로젝트는 silent fallback으로 같은 디렉토리에서 작업함**
 - `run_in_background: true` (병렬 스폰)
+
+**worktree 전제조건 체크 (스폰 전):**
+```bash
+git -C {project-path} rev-parse --is-inside-work-tree 2>/dev/null
+# 실패 시 → isolated 불가. 경고 출력 후 shared 모드로 전환.
+# 경계는 프롬프트 지시(담당 파일 범위)로만 집행.
+```
 
 **스폰 부분 실패 시** (일부 에이전트만 생성됨):
 - TeamDelete로 전체 롤백
@@ -163,13 +201,22 @@ TeamCreate로 팀을 생성한다.
 프로젝트: {project-path}
 팀 멤버: {team-members}  ← 피어 직접 통신용 (예: auth-be, tasks-be, unit-tester)
 
+## 담당 파일 범위 (MECE — 수정 가능 파일 전체 목록)
+담당: {file-list}
+금지: 담당 목록 외 모든 파일 (읽기는 가능, 수정 금지)
+
+⚠ 경계 규칙:
+- 공유 파일(types/, utils/, shared/) 수정 필요 → 즉시 중단 후 Leader 승인 요청
+- 담당 범위 외 파일 수정 감지 시 → 즉시 revert 후 Leader 보고
+- 구현 시작 전: Leader에게 "담당 파일 확인: {파일 목록}" 메시지 전송 필수
+
 ## 코드 탐색 전략 (토큰 효율화)
 {explore-strategy}
 
 ## 피어 통신 원칙
 - 세부 기술 협의(타입 충돌, API 응답 구조 등)는 관련 에이전트에게 직접 SendMessage.
 - Leader에게는 완료/이슈만 보고. 결정권과 상태 truth는 Leader.
-- 공유 파일(shared/, types 등) 수정은 반드시 Leader 승인.
+- 공유 파일 수정은 반드시 Leader 경유. 동시 수정 절대 금지.
 ```
 
 ---
@@ -258,6 +305,52 @@ TeamCreate로 팀을 생성한다.
 - 테스터 버그 리포트 수신 → 수정 후 재보고.
 ```
 
+## 도메인 경계 & Worktree 머지 프로토콜
+
+Step 1-3에서 생성한 MECE 매니페스트를 기반으로 경계를 집행하고 머지 충돌을 방지한다.
+
+### Plan Mode 승인 게이트 (에이전트 3명+, 도메인 의존성 높을 시 권장)
+
+에이전트를 `mode: "plan"` 으로 스폰 → 구현 계획 제출 → Leader 검토 후 승인:
+
+```
+plan_approval_response 판단 기준:
+  ✅ 담당 파일 범위 내에서만 수정 계획
+  ✅ 공유 파일 무단 수정 계획 없음
+  ✅ 타 도메인 API 계약 변경 없음
+  ❌ 위 위반 시 → approve: false + 구체적 피드백 전달
+```
+
+### Worktree 머지 전 경계 위반 체크
+
+각 에이전트 워크트리 머지 전 Leader가 필수 확인:
+
+```bash
+# 에이전트가 담당 범위 외 파일을 수정했는지 확인
+git -C {worktree-path} diff --name-only main | grep -vE "{domain-file-pattern}"
+# 결과가 있으면 → 해당 에이전트에게 revert 지시 후 재확인
+```
+
+### Worktree 머지 순서 (순차 실행 — 병렬 머지 금지)
+
+```
+1. 공유 파일 변경 먼저 (types/, utils/) — Leader 직접 처리
+2. 의존성이 낮은 도메인 (독립적 BE/FE 서비스)
+3. 의존성이 높은 도메인 (다른 서비스를 import하는 쪽)
+4. 테스트 코드 마지막
+```
+
+각 머지 후 빌드 확인 → FAIL → build-fixer 투입 후 다음 단계.
+
+### 머지 충돌 발생 시
+
+```
+자동 해결 가능 → Leader가 직접 처리 후 계속
+수동 판단 필요 → AskUserQuestion:
+  "머지 충돌: {파일명}. 어느 쪽 변경을 기준으로 할까요?
+   옵션: 1) {에이전트 A} 버전  2) {에이전트 B} 버전  3) 수동 병합"
+```
+
 ## Step 5: 작업 지시 대기
 
 팀 스폰 완료 후 표시:
@@ -305,6 +398,25 @@ Codex: 활성화 / 비활성화
                무한 루프 없이 중단
 ```
 
+### 6-2-c. 구조 [C] — architect-agent 온디맨드 스폰 (Step 1에서 판단, 코딩 전 1회)
+
+```
+Step 1-2에서 구조 타입 [C] (불명확/레거시) 판정 시:
+  → architect-agent 온디맨드 스폰:
+      Task(subagent_type="general-purpose", name="architect", model="sonnet",
+           run_in_background=false)
+      프롬프트: "다음 프로젝트의 도메인 디렉토리 구조를 설계하라:
+                현재 구조: {현재 파일 목록}
+                감지된 도메인: {domain-list}
+                목표: 도메인별 디렉토리(src/auth/**, src/products/** 등) 제안
+                출력: 1) 제안 구조 2) 이동할 파일 목록 3) import 경로 수정 계획
+                직접 수정 금지 — 계획만 출력"
+  → Leader가 계획 검토 → AskUserQuestion으로 사용자 승인
+  → 승인 후 architect-agent가 실제 리팩터 실행 (파일 이동, import 수정)
+  → 완료 후 자동 종료 → 구조 [A]로 진행
+  → architect-agent 실패 → 구조 [B] (파일 레벨 MECE)로 폴백
+```
+
 ### 6-2-b. 빌드 실패 시
 
 ```
@@ -324,13 +436,16 @@ Codex: 활성화 / 비활성화
 ```
 1. scenario-tester 실행 (있으면)
    FAIL → 해당 에이전트 수정 → 재검증. 통과 후에만 다음 단계로.
-2. Codex 교차 리뷰 (활성화 시, 머지 전 1회):
+2. Worktree 머지 (isolated 모드 시):
+   → "도메인 경계 & Worktree 머지 프로토콜" 참조
+   → 경계 위반 체크 → 순차 머지 → 각 단계 빌드 확인
+3. Codex 교차 리뷰 (활성화 시, 머지 후 1회):
      codex exec -c model_reasoning_effort=xhigh -s read-only -C {project-path} \
        "다음 코드 변경사항을 리뷰해라: ..."
    Codex 실패 (미설치/권한 오류/타임아웃):
      → 경고 출력 후 스킵. 전체 플로우 중단 X.
      → Leader가 직접 리뷰로 대체 또는 사용자에게 알림.
-3. Leader 최종 판단 → 머지
+4. Leader 최종 판단 → 완료 보고
 ```
 
 ### 6-4. 종료
@@ -349,6 +464,90 @@ Codex: 활성화 / 비활성화
   쿼터 임계치 도달 → 즉시 사용자 알림 → 판단 후 종료/에이전트 수 축소
 ```
 
+## Debate Mode (아키텍처 결정 검토)
+
+아키텍처/설계 결정을 Codex xhigh와 적대적으로 검토. blind spot 제거.
+
+### 진입 조건
+
+**하드 트리거 (무조건 debate):**
+- `irreversible=true`: DB 스키마, 외부 API 계약, 인증 방식 등 되돌리기 어려운 결정
+- `영향범위=3`: 전체 시스템 영향 (공용 타입, 공유 미들웨어, 배포 파이프라인)
+
+**소프트 트리거 (위험도 합계 6+ 시):**
+- 사용자 명시 요청 ("debate", "아키텍처 토론") — 일반 "검토해줘"는 해당 없음
+- 기술 선택지 2개 이상 + 팀 전체 영향
+
+**위험도 점수 (각 1-3점, 합산):**
+
+| 축 | 1점 | 2점 | 3점 |
+|----|-----|-----|-----|
+| 불확실성 | 검증된 패턴 | 일부 불확실 | 실험적/전례 없음 |
+| 영향 범위 | 단일 서비스 | 2개 도메인 이하 | 전체 시스템 |
+| 복잡도 | 단순 구현 | 중간 | 크로스 레이어 |
+
+- 합계 6-7점 → Leader Judge (근거 문서화)
+- 합계 8-9점 또는 하드 트리거 → 사용자 최종 Judge (AskUserQuestion)
+- 영향범위=3 또는 irreversible=true → 점수 무관 하드 트리거 적용
+
+### 참여자
+
+- **Proposer**: Leader — 설계안 초안 작성
+- **Critic**: Codex xhigh — 적대적 검토 (read-only)
+- **Judge**: Leader(6-7점) / 사용자(8-9점 또는 하드 트리거)
+
+### Debate 실행 (최대 2라운드 + 예외 1회)
+
+```bash
+# 설계안 임시 파일로 저장 (인라인 문자열 깨짐 방지)
+cat > /tmp/debate-input.md << 'DEBATE_EOF'
+## 결정 대상: {무엇을 결정하는가}
+## 컨텍스트: {프로젝트 현황, 기존 아키텍처}
+## 제안 방향: {채택 방향과 근거}
+## 고려한 대안: {기각 이유}
+## 비기능 요구: 성능 / 비용 한계 / 보안 / SLO / 롤백 기준
+## 위험도: 불확실성 {1-3} / 영향범위 {1-3} / 복잡도 {1-3} / 합계 {X}/9
+## 우려사항: {스스로 의심되는 부분}
+DEBATE_EOF
+
+codex exec -c model_reasoning_effort=xhigh -s read-only \
+  "$(cat /tmp/debate-input.md)" 2>&1
+```
+
+Codex 출력 강제 포맷 (미준수 시 1회 재질의):
+```
+[BLOCK|TRADEOFF|ACCEPT] {요약}
+- 문제: {구체적 문제}
+- 영향: {발생 가능한 결과}
+- 근거: {사실/제약/원칙 — 의견만이면 TRADEOFF 이하}
+- 수정안: {구체적 대안}
+- 미반영 리스크: {무시 시 결과}
+```
+
+**라운드 처리:**
+- Round 1: [BLOCK] 없음 → 조기 종료 / [BLOCK] 있음 → Round 2
+- Round 2: [BLOCK] 해소 → Judge 결정 / [BLOCK] 지속 → AskUserQuestion
+- 예외 Round 3: 새 증거(제약/사실 변경)가 있을 때만. 그 외 반복 금지.
+
+**BLOCK 기각 이견 시** → 자동 사용자 에스컬레이션 (Leader 단독 결정 금지)
+
+### 출력 형식
+
+```
+## Debate 결과 (Round N)
+채택 결정: {최종 선택}
+위험도: {X}/9 | irreversible: {true/false} → Judge: Leader/사용자
+
+수용된 비판:
+- [{분류}] {비판} → {반영 방법} | 검증 계획: {언제 어떻게}
+
+반박한 비판:
+- [{분류}] {비판} → {반박 근거}
+
+미결 TRADEOFF (감수 사유 명시):
+- [{분류}] {내용} → {감수 이유}
+```
+
 ## 운영 규칙
 
 - **에이전트 생명주기**: 전체 작업 끝날 때까지 종료하지 않음. idle이어도 유지.
@@ -360,3 +559,8 @@ Codex: 활성화 / 비활성화
 - **피어 통신 원칙**: 세부 기술 협의는 에이전트끼리 직접. 결정권과 상태 truth는 Leader.
 - **Codex**: 머지 전 최종 1회만. 매 커밋마다 X. 실패 시 스킵하고 계속 진행.
 - **토큰 효율화**: 구현 전 Explore 서브에이전트로 파악 먼저. 비싼 모델로 순차 읽기 금지.
+- **소유 모델**: [A] 도메인 디렉토리 (기본) / [B] 파일 레벨 (평면 구조 폴백) / [C] architect-agent 먼저 (레거시/불명확). Step 1-2에서 자동 판정.
+- **MECE 경계**: 소유권 매니페스트는 Step 1-3에서 자동 생성. 각 파일/디렉토리는 정확히 1개 에이전트 소유. 경계 위반 시 즉시 revert.
+- **Worktree 머지**: 순차 실행. 병렬 머지 금지. 공유 파일 먼저, 의존성 낮은 순. 머지 전 경계 위반 체크.
+- **Plan Mode 게이트**: 에이전트 3명+, 도메인 의존성 높을 때 구현 전 계획 승인. approve: false + 피드백으로 방향 수정.
+- **Debate**: 하드 트리거 또는 위험도 6+ 안건만. 2라운드 상한. BLOCK 이견 시 사용자 에스컬레이션. 무한 루프 금지.

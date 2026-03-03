@@ -241,28 +241,36 @@ Step 7: 종료 (§3.3 조건 충족 시)
 
 ## 6. 구현 범위
 
-### Phase 1 — MVP (지금)
+### Phase 1 — MVP (완료)
 
 SKILL.md 수정:
-- [ ] allowed-tools에 `TeamDelete` 추가
-- [ ] 에이전트 5명 상한 + 대규모 예시 통일
-- [ ] 워크트리 기준 단일화 (에이전트 수 기준)
-- [ ] Codex 정책 단일화 (머지 전 1회)
-- [ ] circuit breaker 추가
-- [ ] 감지 실패 fallback
-- [ ] 스폰 부분 실패 롤백
-- [ ] Codex degrade 전략
+- [x] allowed-tools에 `TeamDelete` 추가
+- [x] 에이전트 5명 상한 + 대규모 예시 통일
+- [x] 워크트리 기준 단일화 (에이전트 수 기준)
+- [x] Codex 정책 단일화 (머지 전 1회)
+- [x] circuit breaker 추가
+- [x] 감지 실패 fallback
+- [x] 스폰 부분 실패 롤백
+- [x] Codex degrade 전략
 
 테스트:
-- [ ] 피드백 루프 (tester → 에이전트 → 수정 → 재검증)
-- [ ] circuit breaker (2회 FAIL → debugger → 에스컬레이션)
-- [ ] Codex 최종 리뷰 플로우
+- [x] 피드백 루프 (tester → 에이전트 → 수정 → 재검증) — test-task-manager, test-ecommerce
+- [x] circuit breaker (2회 FAIL → debugger → 에스컬레이션) — SKILL.md 구현
+- [x] [A] 도메인 디렉토리 소유 구조 — test-domain-dir 13/13 PASS
+- [x] [B] 평면 구조 파일 레벨 MECE — test-ecommerce 28/28 PASS
+- [ ] [C] architect-agent E2E (설계 완료, 레거시 프로젝트 필요)
+- [ ] Codex 최종 리뷰 플로우 E2E
+- [ ] Plan Mode 승인 게이트 E2E
 
 ### Phase 2 — 안정화
 
-- [ ] isolated 워크트리 + 충돌 롤백
+- [x] isolated 워크트리 + MECE 경계 프로토콜 (파일 소유권 매니페스트)
+- [x] Worktree 머지 순서 정의 (순차, 의존성 기준)
+- [x] 머지 전 경계 위반 체크 (git diff --name-only)
+- [x] Plan Mode 승인 게이트 (에이전트 3명+)
+- [x] Debate Mode (Codex xhigh 적대적 검토, 2라운드 상한)
 - [ ] 모델 라우팅 기준 구체화
-- [ ] 도메인 간 공유 타입/스키마 변경 플로우
+- [ ] 도메인 간 공유 타입/스키마 변경 플로우 실전 테스트
 - [ ] flaky test 처리 (재실행 1회)
 
 ### Phase 3 — 확장
