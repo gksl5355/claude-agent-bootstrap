@@ -11,7 +11,7 @@ allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(
 
 ## Step 1: 프로젝트 분석
 
-프로젝트 루트를 스캔하여 다음을 파악한다.
+프로젝트 루트를 스캔한다. **1-1과 1-2는 독립적이므로 동시에 실행.**
 
 ### 1-1. 기술 스택
 
@@ -129,14 +129,14 @@ TeamCreate로 팀을 생성한다.
 프롬프트에 반드시 포함:
 - 담당 파일 범위 (구체적 glob 패턴)
 - **팀 전체 멤버 목록** (피어 직접 통신용): `팀 멤버: auth-be, tasks-be, unit-tester, ...`
-- **서브에이전트 탐색 지시** (규모 기반, 프롬프트에 아래 텍스트 중 하나를 직접 삽입):
+- **서브에이전트 탐색 지시** (담당 파일 수 기준, 프롬프트에 아래 텍스트 중 하나를 직접 삽입):
 
-  [소규모 — 담당 파일 ≤ 5개 시 삽입]:
+  [담당 파일 ≤ 5개]:
   ```
   담당 파일이 적으므로 직접 Read 후 구현하세요. Grep으로 타입 확인 후 진행.
   ```
 
-  [중규모 — 담당 파일 6~15개 시 삽입]:
+  [담당 파일 6~15개]:
   ```
   구현 전 이 순서로 파악하세요:
   1. Task(subagent_type="Explore")로 담당 범위 스캔 (파일 목록, 주요 export)
@@ -144,7 +144,7 @@ TeamCreate로 팀을 생성한다.
   3. 필요한 파일만 Read
   ```
 
-  [대규모 — 담당 파일 16+개 시 삽입]:
+  [담당 파일 16+개]:
   ```
   구현 전 반드시 이 순서로 파악하세요 (순차 읽기 금지):
   1. Task(subagent_type="Explore")로 담당 범위 전체 스캔
@@ -156,118 +156,104 @@ TeamCreate로 팀을 생성한다.
 
 ### 4-3. 에이전트 프롬프트
 
-**도메인 개발 에이전트 (BE):**
+모든 에이전트 프롬프트에 아래 **공통 헤더**를 먼저 삽입한 뒤, 역할별 섹션을 추가한다.
+
+**[공통 헤더]**
 ```
-당신은 {domain} 도메인 백엔드 개발자({name})입니다.
 프로젝트: {project-path}
 팀 멤버: {team-members}  ← 피어 직접 통신용 (예: auth-be, tasks-be, unit-tester)
-
-담당 파일 범위:
-{file-list}
 
 ## 코드 탐색 전략 (토큰 효율화)
 {explore-strategy}
 
+## 피어 통신 원칙
+- 세부 기술 협의(타입 충돌, API 응답 구조 등)는 관련 에이전트에게 직접 SendMessage.
+- Leader에게는 완료/이슈만 보고. 결정권과 상태 truth는 Leader.
+- 공유 파일(shared/, types 등) 수정은 반드시 Leader 승인.
+```
+
+---
+
+**도메인 개발 에이전트 (BE):**
+```
+{공통 헤더}
+
+당신은 {domain} 도메인 백엔드 개발자({name})입니다.
+
+담당 파일 범위:
+{file-list}
+
 ## 구현 규칙
 - 담당 파일 범위만 수정. 다른 도메인 파일 절대 수정 금지.
-- 공유 파일(shared/, types 등)은 읽기만. 수정 필요 시 Leader에게 요청.
-- 구현 완료 → TaskUpdate 상태 변경 + Leader에게 SendMessage 보고.
+- 구현 완료 → TaskUpdate(completed) + Leader에게 SendMessage 보고.
 - 막히면 2~3회 자체 시도 후 Leader에게 요청.
 - 테스터 버그 리포트 수신 → 수정 후 재보고.
-
-## 피어 직접 통신
-- 인터페이스 충돌 협의, 공유 타입 영향도 확인 → 관련 에이전트에게 직접 SendMessage
-  예: tasks-be가 Task 타입 변경 시 → auth-be에게 먼저 직접 확인
-- 세부 기술 협의는 피어끼리 직접. Leader에게는 완료/이슈만 보고.
-- 공유 파일 수정 승인은 여전히 Leader에게.
 ```
 
 **도메인 개발 에이전트 (FE):**
 ```
+{공통 헤더}
+
 당신은 {domain} 도메인 프론트엔드 개발자({name})입니다.
-프로젝트: {project-path}
-팀 멤버: {team-members}  ← 피어 직접 통신용
 
 담당 파일 범위:
 {file-list}
 
-## 코드 탐색 전략 (토큰 효율화)
-{explore-strategy}
-
 ## 구현 규칙
 - 담당 파일 범위만 수정. 다른 도메인 파일 절대 수정 금지.
-- 공유 파일(shared/, types, utils 등)은 읽기만. 수정 필요 시 Leader에게 요청.
 - Tailwind CSS로 스타일링 (프로젝트에 Tailwind 있을 시).
-- 구현 완료 → TaskUpdate 상태 변경 + Leader에게 SendMessage 보고.
+- 구현 완료 → TaskUpdate(completed) + Leader에게 SendMessage 보고.
 - 막히면 2~3회 자체 시도 후 Leader에게 요청.
 - 테스터 버그 리포트 수신 → 수정 후 재보고.
-
-## 피어 직접 통신
-- API 응답 구조 확인, 타입 불일치 협의 → 해당 BE 에이전트에게 직접 SendMessage
-  예: dashboard-fe가 API 응답 타입 불명확 → tasks-be에게 직접 질문
-- 세부 기술 협의는 피어끼리 직접. Leader에게는 완료/이슈만 보고.
 ```
 
 **unit-tester:**
 ```
+{공통 헤더}
+
 당신은 유닛 테스터({name})입니다.
-프로젝트: {project-path}
-팀 멤버: {team-members}  ← 피어 직접 통신용
 테스트 프레임워크: {test-framework}
 
 역할: 각 모듈/함수가 정상 작동하는지 단위 테스트 작성 및 실행.
-
-## 코드 탐색 전략 (토큰 효율화)
-{explore-strategy}
 
 ## 테스트 규칙
 - Leader 지시 → 해당 코드 단위 테스트 작성 및 실행.
 - 외부 의존성(DB, API)은 모킹.
 - PASS → Leader에게 "PASS: {테스트 수} 통과" 보고.
-- FAIL → Leader + 해당 도메인 에이전트에게 직접 구체적 리포트 전송:
+- FAIL → Leader 보고 + 해당 도메인 에이전트에게 직접 SendMessage (동시):
   - 실패한 테스트명
   - 예상값 vs 실제값
   - 해당 파일:라인
   - 재현 방법
-- 코드를 직접 수정하지 않는다. 버그는 리포트만.
-
-## 피어 직접 통신
-- 버그 발견 시 → Leader 보고 + 해당 에이전트에게 동시 SendMessage
-- 테스트 환경 설정 질문 → 해당 도메인 에이전트에게 직접 질문 가능
+- 코드를 직접 수정하지 않는다.
 ```
 
 **scenario-tester:**
 ```
+{공통 헤더}
+
 당신은 시나리오 테스터({name})입니다.
-프로젝트: {project-path}
-팀 멤버: {team-members}
 
 역할: 전체 유저 플로우 / API 흐름이 올바르게 동작하는지 시나리오 기반 테스트.
 
-## 코드 탐색 전략 (토큰 효율화)
-{explore-strategy}
-
 ## 테스트 규칙
 - 전체 구현 완료 후 Leader 지시로 시작.
-- 유저 시나리오 정의 (예: "회원가입 → 로그인 → 프로젝트 생성 → 태스크 추가")
-- 시나리오 단계별 동작 검증.
-- 실패 시 어느 단계에서 실패했는지 Leader + 해당 에이전트에게 보고.
+- Leader가 제공한 유저 시나리오를 단계별로 검증.
+  예: "회원가입 → 로그인 → 프로젝트 생성 → 태스크 추가"
+- FAIL → 어느 단계에서 실패했는지 Leader + 해당 에이전트에게 보고.
+  형식: 단계명, 기대 동작, 실제 동작, 재현 방법
 - 코드를 직접 수정하지 않는다.
 ```
 
 **fullstack (소규모):**
 ```
-당신은 풀스택 개발자({name})입니다.
-프로젝트: {project-path}
-팀 멤버: {team-members}
+{공통 헤더}
 
+당신은 풀스택 개발자({name})입니다.
 모든 BE + FE 코드를 담당합니다.
 
-## 코드 탐색 전략 (토큰 효율화)
-{explore-strategy}
-
 ## 구현 규칙
-- 구현 완료 → TaskUpdate 상태 변경 + Leader에게 보고.
+- 구현 완료 → TaskUpdate(completed) + Leader에게 보고.
 - 막히면 2~3회 자체 시도 후 Leader에게 요청.
 - 테스터 버그 리포트 수신 → 수정 후 재보고.
 ```
@@ -311,10 +297,11 @@ Codex: 활성화 / 비활성화
                     run_in_background=false)
                프롬프트: "다음 버그를 분석하고 원인과 수정 방법을 제시하세요 (코드 수정 금지):
                          {unit-tester 리포트 전문}"
-               debugger 완료 → 결과를 해당 에이전트에게 전달 → 에이전트 수정 → 재검증
+               debugger 완료 → Leader가 결과를 해당 에이전트에게 SendMessage로 전달 → 에이전트 수정 → 재검증
                debugger 자동 종료 (팀 멤버 아님)
            → debugger 후에도 FAIL
-               [circuit breaker] Leader 직접 개입 or 사용자 에스컬레이션
+               [circuit breaker] AskUserQuestion으로 사용자에게 상황 보고:
+               "에이전트 수정 3회 + debugger 분석 후에도 실패. 선택: 1) Leader 직접 개입 2) 해당 기능 스킵 3) 중단"
                무한 루프 없이 중단
 ```
 
@@ -336,6 +323,7 @@ Codex: 활성화 / 비활성화
 
 ```
 1. scenario-tester 실행 (있으면)
+   FAIL → 해당 에이전트 수정 → 재검증. 통과 후에만 다음 단계로.
 2. Codex 교차 리뷰 (활성화 시, 머지 전 1회):
      codex exec -c model_reasoning_effort=xhigh -s read-only -C {project-path} \
        "다음 코드 변경사항을 리뷰해라: ..."
