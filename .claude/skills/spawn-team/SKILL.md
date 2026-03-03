@@ -2,7 +2,7 @@
 name: spawn-team
 description: This skill should be used when the user asks to "create a team", "spawn a team", "start team agents", "set up a dev team", or wants to begin parallel development with Claude Code Agent Teams. Analyzes the project, detects domains, and spawns an optimized team of agents dynamically.
 argument-hint: "[project path]"
-allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(wc *), Bash(sg *), Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage, AskUserQuestion
+allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(wc *), Bash(sg *), Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, TeamDelete, SendMessage, AskUserQuestion
 ---
 
 # Spawn Team
@@ -11,9 +11,10 @@ allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(
 
 ## Step 1: 프로젝트 분석
 
-프로젝트 루트를 스캔하여 다음을 파악한다:
+프로젝트 루트를 스캔하여 다음을 파악한다.
 
 ### 1-1. 기술 스택
+
 package.json, requirements.txt, go.mod, Cargo.toml 등에서 기술 스택 파악.
 
 ### 1-2. 도메인 감지
@@ -27,20 +28,16 @@ FE 도메인 감지:
 - `components/` 는 보조 (도메인 판단에 직접 사용하지 않음)
 - 예: pages/LoginPage.tsx, pages/DashboardPage.tsx → 도메인: auth, dashboard
 
-### 1-3. 규모 산정
+**감지 실패 시** (모노레포, 비표준 구조, 위 패턴 없음):
+- AskUserQuestion으로 도메인 직접 지정 요청
+- 또는 fullstack 1명이 전체 담당 (사용자 선택)
+
+### 1-3. 도메인 규모 판단
 
 각 도메인의 파일 수를 세어 규모 판단:
 - 소 도메인 (파일 1~3개) → 인접 도메인과 병합 후보
 - 중 도메인 (파일 4~9개) → 독립 에이전트 1명
 - 대 도메인 (파일 10+개) → 독립 에이전트 1명 (필요 시 분할 제안)
-
-### 1-4. 전체 규모
-
-```
-소규모: 소스 < 10파일, 도메인 1~2개
-중규모: 소스 10~30파일, 도메인 2~4개
-대규모: 소스 30+파일, 도메인 4+개
-```
 
 ## Step 2: 팀 구성 제안 (동적)
 
@@ -48,44 +45,51 @@ FE 도메인 감지:
 
 ### 구성 규칙
 
-**개발 에이전트:**
-- 도메인당 1명 기본 (BE/FE 각각)
-- 소 도메인은 인접 도메인과 병합 제안
-- 에이전트 총 수 5명 이하 권장 (쿼터)
-- 도메인이 많으면 소규모 도메인을 병합하여 5 이내로
-- 대규모 프로젝트에서 설계 복잡 시 planner(sonnet) 1명 추가
+**에이전트 수 기준 (5명 상한 엄수):**
 
-**테스터:**
-- 소/중규모: unit-tester(haiku) 1명 (시나리오는 겸하거나 Leader/Codex)
-- 대규모: unit-tester(haiku) 1 + scenario-tester(haiku) 1
-
-**워크트리:**
-- 에이전트 3명 이상 → isolated (자동)
-- 에이전트 2명 이하 → shared (자동)
-
-### 구성 예시
-
-소규모 (TODO앱, 도메인 1~2):
 ```
-fullstack(sonnet) 1 + unit-tester(haiku) 1
+소규모 (1~2명):
+  fullstack(sonnet) 1 + unit-tester(haiku) 1
+  워크트리: shared
+
+중규모 (3~4명):
+  도메인별 be/fe(sonnet) + unit-tester(haiku) 1
+  워크트리: isolated
+
+대규모 (5명, 상한):
+  planner(sonnet) 1
+  + 도메인 에이전트(sonnet) — 병합하여 2명 이내
+  + unit-tester(haiku) + scenario-tester(haiku)
+  워크트리: isolated
+```
+
+- 도메인이 많으면 소규모 도메인 병합 → 5명 이내로
+- planner와 scenario-tester 둘 다 필요하면 5명 상한 재확인 후 하나 제거
+- 워크트리: 에이전트 3명 이상 → isolated, 2명 이하 → shared
+
+**구성 예시**
+
+소규모 (TODO앱):
+```
+fullstack(sonnet) 1 + unit-tester(haiku) 1  → 총 2명
 워크트리: shared
 ```
 
 중규모 (task-manager, 도메인 3):
 ```
-auth-be(sonnet) + tasks-be(sonnet) + projects-be(sonnet)
+auth-be(sonnet) + tasks-be(sonnet)  → 소규모 도메인 병합
 dashboard-fe(sonnet)
-unit-tester(haiku) 1
-워크트리: isolated
+unit-tester(haiku)
+→ 총 4명, 워크트리: isolated
 ```
 
 대규모 (이커머스, 도메인 6+):
 ```
 planner(sonnet) 1
-auth-be + products-be + orders-be + payments-be (소규모 도메인 병합)
-catalog-fe + checkout-fe + admin-fe (소규모 도메인 병합)
+core-be(sonnet) — auth+products 병합
+orders-be(sonnet) — orders+payments 병합
 unit-tester(haiku) + scenario-tester(haiku)
-워크트리: isolated
+→ 총 5명, 워크트리: isolated
 ```
 
 ## Step 3: 사용자 확인
@@ -94,17 +98,18 @@ AskUserQuestion으로 다음을 확인:
 
 **질문 1**: 팀 구성 확인
 - 분석 결과와 추천 팀 구성 표시
-- 도메인별 에이전트 목록 + 담당 파일 범위
+- 에이전트별 담당 파일 범위
 - 병합된 도메인 설명
 - 옵션: 추천대로 / 조정
 
 **질문 2**: Codex 활성화
-- "Codex CLI를 교차 리뷰/코딩 보조로 사용할까요?"
+- "Codex CLI를 머지 전 최종 리뷰에 사용할까요?"
 - 옵션: 사용 / 사용 안 함
 
 ## Step 4: 팀 스폰
 
 ### 4-1. 팀 생성
+
 TeamCreate로 팀을 생성한다.
 
 ### 4-2. 에이전트 스폰
@@ -116,6 +121,10 @@ TeamCreate로 팀을 생성한다.
 - `model: "sonnet"` (개발자) 또는 `"haiku"` (테스터)
 - `isolation: "worktree"` (isolated 모드 시)
 - `run_in_background: true` (병렬 스폰)
+
+**스폰 부분 실패 시** (일부 에이전트만 생성됨):
+- TeamDelete로 전체 롤백
+- 사용자에게 알림 후 재시도 제안
 
 프롬프트에 반드시 포함:
 - 담당 파일 범위 (구체적 glob 패턴)
@@ -215,15 +224,15 @@ TeamCreate로 팀을 생성한다.
 - Leader 지시 → 해당 코드 단위 테스트 작성 및 실행.
 - 외부 의존성(DB, API)은 모킹.
 - PASS → Leader에게 "PASS: {테스트 수} 통과" 보고.
-- FAIL → Leader + **해당 도메인 에이전트에게 직접** 구체적 리포트 전송:
+- FAIL → Leader + 해당 도메인 에이전트에게 직접 구체적 리포트 전송:
   - 실패한 테스트명
   - 예상값 vs 실제값
   - 해당 파일:라인
   - 재현 방법
-- **코드를 직접 수정하지 않습니다.** 버그는 리포트만.
+- 코드를 직접 수정하지 않는다. 버그는 리포트만.
 
 ## 피어 직접 통신
-- 버그 발견 시 → Leader 보고 + 해당 에이전트에게 동시 SendMessage (이슈 빠른 전달)
+- 버그 발견 시 → Leader 보고 + 해당 에이전트에게 동시 SendMessage
 - 테스트 환경 설정 질문 → 해당 도메인 에이전트에게 직접 질문 가능
 ```
 
@@ -240,10 +249,10 @@ TeamCreate로 팀을 생성한다.
 
 ## 테스트 규칙
 - 전체 구현 완료 후 Leader 지시로 시작.
-- 유저 시나리오 정의 후 (예: "회원가입 → 로그인 → 프로젝트 생성 → 태스크 추가")
+- 유저 시나리오 정의 (예: "회원가입 → 로그인 → 프로젝트 생성 → 태스크 추가")
 - 시나리오 단계별 동작 검증.
 - 실패 시 어느 단계에서 실패했는지 Leader + 해당 에이전트에게 보고.
-- **코드를 직접 수정하지 않습니다.**
+- 코드를 직접 수정하지 않는다.
 ```
 
 **fullstack (소규모):**
@@ -270,13 +279,11 @@ TeamCreate로 팀을 생성한다.
 팀 준비 완료.
 
 에이전트:
-  auth-be (sonnet) — src/server/**/auth*
-  tasks-be (sonnet) — src/server/**/task*
-  dashboard-fe (sonnet) — src/client/pages/Dashboard*, src/client/components/Project*
-  unit-tester (haiku)
+  {name} ({model}) — {file-range}
+  ...
 
-Codex: 활성화 (머지 전 교차 리뷰)
-워크트리: isolated
+Codex: 활성화 / 비활성화
+워크트리: isolated / shared
 
 작업을 지시해주세요.
 ```
@@ -290,53 +297,78 @@ Codex: 활성화 (머지 전 교차 리뷰)
 - 독립 도메인은 병렬, 의존 있으면 blockedBy
 
 ### 6-2. 구현 → 테스트 루프
+
 ```
-에이전트 구현 완료
+에이전트 구현 완료 → TaskUpdate(completed) + Leader 보고
   → Leader가 unit-tester에게 테스트 지시
-  → unit-tester 결과:
-     PASS → 다음 에이전트 or 다음 단계
-     FAIL → Leader에게 리포트 + 해당 에이전트에게 직접 SendMessage
-       → 에이전트 수정 → unit-tester 재검증
-       → 2회 반복 후에도 FAIL → Leader가 debugger 온디맨드 스폰:
-           Task(subagent_type="general-purpose", name="debugger", model="haiku",
-                run_in_background=false)
-           프롬프트: "다음 버그를 분석하고 원인과 수정 방법을 제시하세요 (코드 수정 금지):
-                     {unit-tester 리포트 전문}"
-           debugger 완료 → 결과를 해당 에이전트에게 전달 → 에이전트 수정
-           debugger는 task 완료 시 자동 종료 (팀 멤버 아님)
+  → unit-tester:
+       PASS → "PASS: N 통과" Leader 보고 → 다음 단계
+       FAIL → Leader 보고 + 해당 에이전트에게 직접 SendMessage (동시)
+         → 에이전트 수정 → unit-tester 재검증
+         → 2회 반복 후에도 FAIL
+           → debugger 온디맨드 스폰:
+               Task(subagent_type="general-purpose", name="debugger", model="haiku",
+                    run_in_background=false)
+               프롬프트: "다음 버그를 분석하고 원인과 수정 방법을 제시하세요 (코드 수정 금지):
+                         {unit-tester 리포트 전문}"
+               debugger 완료 → 결과를 해당 에이전트에게 전달 → 에이전트 수정 → 재검증
+               debugger 자동 종료 (팀 멤버 아님)
+           → debugger 후에도 FAIL
+               [circuit breaker] Leader 직접 개입 or 사용자 에스컬레이션
+               무한 루프 없이 중단
 ```
 
 ### 6-2-b. 빌드 실패 시
+
 ```
-빌드/컴파일 오류 감지 (에이전트 보고 or CI 실패)
-  → Leader가 build-fixer 온디맨드 스폰:
+빌드/컴파일 오류 감지
+  → build-fixer 온디맨드 스폰:
       Task(subagent_type="general-purpose", name="build-fixer", model="haiku",
            run_in_background=false)
       프롬프트: "다음 빌드 오류를 분석하고 수정하세요:
                 {오류 메시지 전문}
                 수정 가능한 파일: {해당 도메인 파일 범위}"
       build-fixer 완료 → 자동 종료
+  → build-fixer 실패 → Leader 직접 개입 or 사용자 에스컬레이션
 ```
 
 ### 6-3. 전체 통과 후
-- scenario-tester 실행 (있으면)
-- Codex 교차 리뷰 (활성화 시)
-  ```bash
-  codex exec -c model_reasoning_effort=xhigh -s read-only -C {project-path} "다음 코드 변경사항을 리뷰해라: ..."
-  ```
-- Leader 최종 판단 → 머지
+
+```
+1. scenario-tester 실행 (있으면)
+2. Codex 교차 리뷰 (활성화 시, 머지 전 1회):
+     codex exec -c model_reasoning_effort=xhigh -s read-only -C {project-path} \
+       "다음 코드 변경사항을 리뷰해라: ..."
+   Codex 실패 (미설치/권한 오류/타임아웃):
+     → 경고 출력 후 스킵. 전체 플로우 중단 X.
+     → Leader가 직접 리뷰로 대체 또는 사용자에게 알림.
+3. Leader 최종 판단 → 머지
+```
 
 ### 6-4. 종료
-전체 작업 완료 → 모든 에이전트 일괄 shutdown (SendMessage type: shutdown_request)
-팀 정리 (TeamDelete)
+
+```
+종료 조건 (AND):
+  1. 모든 TaskList 항목 completed
+  2. unit-tester PASS
+  3. scenario-tester PASS (있을 때)
+  4. Codex 리뷰 완료 (활성화 시)
+
+→ 모든 에이전트 일괄 shutdown_request 전송
+→ TeamDelete
+
+예외:
+  쿼터 임계치 도달 → 즉시 사용자 알림 → 판단 후 종료/에이전트 수 축소
+```
 
 ## 운영 규칙
 
 - **에이전트 생명주기**: 전체 작업 끝날 때까지 종료하지 않음. idle이어도 유지.
-- **쿼터 인식**: 에이전트 1명 ≈ 7x 소모. 5명 이하 권장. 쿼터 부족 시 즉시 축소.
-- **opus는 Leader뿐**: 나머지 sonnet(개발) / haiku(테스트).
+- **idle 비용 없음**: Agent Teams는 메시지 받을 때만 쿼터 소모. idle 유지 자체는 비용 없음.
+- **쿼터 인식**: 에이전트 1명 ≈ 7x 소모. 5명 이하 엄수. 쿼터 부족 시 즉시 축소.
+- **모델**: leader = Sonnet+thinking(메인), 개발 = sonnet, 테스트 = haiku.
 - **파일 격리**: 도메인 에이전트는 자기 도메인 파일만 수정. 공유 파일 수정 시 Leader 승인.
 - **테스터는 수정 안 함**: 버그 리포트만. 수정은 해당 도메인 에이전트가.
-- **Codex 리뷰**: 머지 전 최종 리뷰에만 (매 커밋마다 X). xhigh로 깊게.
-- **토큰 효율화**: 에이전트는 구현 전 반드시 Explore 서브에이전트로 파악 먼저. 비싼 모델로 전체 파일 순차 읽기 금지.
-- **피어 직접 통신**: 세부 기술 협의(인터페이스 충돌, API 타입 확인 등)는 에이전트끼리 직접 SendMessage. Leader는 완료/이슈 보고만 수신. Leader 경유 오버헤드 최소화.
+- **피어 통신 원칙**: 세부 기술 협의는 에이전트끼리 직접. 결정권과 상태 truth는 Leader.
+- **Codex**: 머지 전 최종 1회만. 매 커밋마다 X. 실패 시 스킵하고 계속 진행.
+- **토큰 효율화**: 구현 전 Explore 서브에이전트로 파악 먼저. 비싼 모델로 순차 읽기 금지.

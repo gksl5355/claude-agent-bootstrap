@@ -1,311 +1,283 @@
-# Team Orchestrator — 1단계 코어
+# Team Orchestrator
 
 ## 목표
 
-`/spawn-team` 스킬로 프로젝트에 최적화된 Claude Code Agent Teams를 동적으로 구성하고 운영한다.
+프로젝트를 분석해 도메인 기반 팀을 동적 구성하고, 피드백 루프로 완료까지 운영하는 오케스트레이터.
 
 **환경**: Claude Max (Agent Teams, teammateMode: tmux)
 **구현체**: `.claude/skills/spawn-team/SKILL.md`
-**선택 확장**: Codex CLI (ChatGPT Plus) — enabled/disabled
+**외부 의존**: 없음 (필요한 것만 선택적으로 가져옴)
+
+### omc 관계
+
+fork도 플러그인도 아님. 파일 단위로 선택 참조.
+
+```
+가져올 것 (파일만):
+  ralph/SKILL.md   → 복사 후 내 피드백 루프에 맞게 수정 (Phase 3)
+  hud/omc-hud.mjs  → 그대로 사용 (Phase 3)
+
+참고만:
+  configure-notifications/SKILL.md (Phase 3)
+
+내 것 그대로:
+  spawn-team/SKILL.md — 이미 핵심 구현됨, 계속 발전
+```
 
 ---
 
-## 1. 팀 구성 (동적)
+## 단계 로드맵
 
-### 1.1 역할
+```
+Phase 1 — MVP
+  동적 팀 구성 + 피드백 루프 + Codex 최종 리뷰 1회
+  → 안정적으로 작동하는 오케스트레이터 확보
+
+Phase 2 — 안정화
+  isolated 워크트리 / 부분 실패 롤백 / 라우팅 기준 명확화
+
+Phase 3 — 확장
+  ralph 통합 / HUD / Notification (omc 파일 가져옴)
+```
+
+---
+
+## 1. 모델 라우팅
+
+```
+태스크 특성                          → 모델
+────────────────────────────────────────────
+반복적, 기계적, 테스트               → Haiku
+일반 구현                            → Sonnet
+설계 / 아키텍처 / 복잡한 판단        → Sonnet + extended thinking
+리뷰 / 독립 분석 / 컨텍스트 분리     → Codex (codex exec)
+```
+
+**Codex 호출 조건 (명시적)**
+- 코드/보안 리뷰
+- 설계 비판
+- Claude 쿼터 부족으로 구현 위임
+- 컨텍스트 오염을 명시적으로 피해야 할 때
+
+Codex는 팀 멤버 아님. 필요 시 `codex exec`으로 동적 호출.
+
+**Codex 실패 시**: 경고 후 스킵, 전체 플로우 중단 없음. Leader가 직접 리뷰로 대체.
+
+---
+
+## 2. 팀 구성 (동적)
+
+### 2.1 에이전트 역할
 
 | 역할 | 모델 | 책임 |
 |---|---|---|
-| leader | opus (메인 세션) | 분석, 분배, 조율, 최종 판단 |
-| planner | sonnet | 아키텍처 설계, 기술 스펙 (대규모 시) |
-| {domain}-be | sonnet | 도메인별 백엔드 구현 |
-| {domain}-fe | sonnet | 도메인별 프론트엔드 구현 |
-| fullstack | sonnet | BE+FE 겸용 (소규모, 도메인 분리 불필요 시) |
-| unit-tester | haiku | 단위 테스트: 함수/모듈이 정상 작동하는가 |
-| scenario-tester | haiku | 시나리오 테스트: 유저 플로우/API 흐름이 맞는가 |
-| worker | haiku | 단순/반복 (보일러플레이트, 마이그레이션) |
+| leader | Sonnet + thinking (메인 세션) | 분석, 분배, 조율, 최종 판단 |
+| planner | Sonnet + thinking | 아키텍처 설계 (대규모만) |
+| {domain}-be | Sonnet | 도메인별 백엔드 구현 |
+| {domain}-fe | Sonnet | 도메인별 프론트엔드 구현 |
+| fullstack | Sonnet | BE+FE 겸용 (소규모) |
+| unit-tester | Haiku | 단위 테스트 — 코드 수정 X |
+| scenario-tester | Haiku | 유저 플로우/API 흐름 — 코드 수정 X |
+| debugger | Haiku | 온디맨드 버그 분석 — 코드 수정 X, 팀 멤버 아님 |
+| build-fixer | Haiku | 온디맨드 빌드 오류 수정 — 팀 멤버 아님 |
 
-- leader = 메인 세션 (스폰 X)
-- opus는 leader뿐, 나머지 sonnet/haiku
-
-### 1.2 동적 팀 구성
-
-고정 프리셋 대신, **프로젝트 분석 결과로 팀을 동적 생성**한다.
+### 2.2 도메인 감지
 
 ```
-프로젝트 스캔 결과:
-  도메인 수, 파일 수, BE/FE 비율, 기술 스택
+BE: routes/, controllers/, services/, handlers/ 파일명 → 도메인
+FE: pages/, views/ 파일명/폴더명 → 도메인
 
-→ 자동 결정:
-  - 에이전트 수 = 감지된 도메인 수 기반
-  - BE/FE 분리 = 도메인별 파일 규모 기반
-  - 테스터 수/종류 = 테스트 필요 범위 기반
-  - 워크트리 = 에이전트 수 기반 (3+ → isolated)
+소 도메인 (1~3파일) → 인접 도메인 병합 제안
+중 도메인 (4~9파일) → 독립 에이전트 1명
+대 도메인 (10+파일) → 독립 에이전트 1명
+
+감지 실패 (모노레포, 비표준 구조):
+  → 사용자에게 도메인 직접 지정 요청
+  → 또는 fullstack 1명이 전체 담당
 ```
 
-### 1.3 도메인 감지
+### 2.3 규모별 구성
+
+에이전트 수 기준으로 통일. **상한 5명 엄수.**
 
 ```
-스캔 대상:
-  BE: routes/, controllers/, services/, handlers/ 파일명으로 도메인 추출
-  FE: pages/, components/ 폴더 or 파일명으로 도메인 추출
-
-예시 (task-manager-app):
-  BE 도메인: auth, tasks, projects
-  FE 도메인: auth(login), dashboard, board
-
-도메인이 작으면 (파일 2~3개) → 인접 도메인과 병합
-도메인이 크면 (파일 10+) → 독립 에이전트
-```
-
-### 1.4 구성 가이드라인
-
-```
-소규모 (소스 < 10파일, 도메인 1~2개):
-  fullstack(sonnet) 1 + unit-tester(haiku) 1
+소규모 (1~2명):
+  fullstack(Sonnet) 1 + unit-tester(Haiku) 1
   워크트리: shared
 
-중규모 (10~30파일, 도메인 2~4개):
-  도메인별 be/fe(sonnet) + unit-tester(haiku) 1
+중규모 (3~4명):
+  도메인별 be/fe(Sonnet) + unit-tester(Haiku) 1
   워크트리: isolated
 
-대규모 (30+파일, 도메인 4+개):
-  도메인별 be/fe(sonnet) + planner(sonnet) 1
-  + unit-tester(haiku) 1 + scenario-tester(haiku) 1
+대규모 (5명, 상한):
+  planner(Sonnet+thinking) 1
+  + 도메인 에이전트(Sonnet) — 병합하여 3명 이내
+  + unit-tester(Haiku) + scenario-tester(Haiku)
   워크트리: isolated
 
-에이전트 총 수 5명 이하 권장 (쿼터)
-도메인 수 > 5면 → 소규모 도메인 병합하여 5 이내로
+도메인 많을 때: 소규모 도메인 병합 → 5명 이내로
+planner + scenario-tester 둘 다 필요하면 5명 상한 재확인 후 하나 제거
 ```
 
-### 1.5 테스터 역할 분리
+---
 
-| 테스터 | 담당 | 시점 |
+## 3. 에이전트 생명주기 & 자원 관리
+
+### 3.1 idle 비용
+
+Agent Teams는 **메시지 받을 때만** 쿼터 소모. idle 유지 자체는 비용 없음.
+불필요한 메시지 왕복이 진짜 비용 → 피어 직접 통신으로 Leader 경유 최소화.
+
+### 3.2 피어 직접 통신 — 상태 일관성 규칙
+
+```
+피어끼리 직접 가능:
+  인터페이스/API 타입 협의 (BE ↔ FE)
+  버그 리포트 전달 (tester → 도메인 에이전트)
+  환경 설정 질문
+
+반드시 Leader 경유:
+  공유 파일 수정 승인
+  도메인 경계를 넘는 결정 (스키마/API 계약 변경)
+  작업 완료/실패 최종 보고
+
+→ 피어 협의 = 세부 기술
+  결정권 = Leader
+  상태 truth = Leader의 TaskList
+```
+
+### 3.3 종료 조건 (AND)
+
+```
+1. 모든 TaskList 항목 completed
+2. unit-tester PASS (flaky 의심 시 재실행 1회)
+3. scenario-tester PASS (있을 때)
+4. Codex 리뷰 완료 (활성화 시)
+
+→ Leader가 일괄 shutdown_request 전송
+→ TeamDelete  ← allowed-tools에 포함 필수
+
+예외:
+  쿼터 임계치 도달 → 즉시 사용자 알림 → 판단 후 종료/에이전트 수 축소
+```
+
+### 3.4 피드백 루프
+
+```
+에이전트 구현 완료
+  → TaskUpdate(completed) + Leader 보고
+  → Leader → unit-tester에게 테스트 지시
+  → unit-tester:
+       PASS → Leader 보고 ("PASS: N 통과")
+       FAIL → Leader 보고 + 해당 에이전트에게 직접 SendMessage (동시)
+         → 에이전트 수정 → unit-tester 재검증
+         → 2회 반복 후 FAIL
+           → debugger 온디맨드 스폰
+               Task(name="debugger", model="haiku", run_in_background=false)
+               "분석만, 코드 수정 금지. {리포트 전문}"
+               → 결과를 에이전트에게 전달 → 수정 → 재검증
+               → debugger 자동 종료
+           → debugger 후에도 FAIL
+               [circuit breaker] Leader 직접 개입 or 사용자 에스컬레이션
+               무한 루프 없이 중단
+
+빌드 오류:
+  → build-fixer 온디맨드 스폰 (haiku)
+  → 해결 후 자동 종료
+  → build-fixer 실패 → Leader 직접 개입 or 사용자 에스컬레이션
+```
+
+---
+
+## 4. Codex 연동
+
+### 4.1 호출 시점
+
+| 시점 | 명령 | 트리거 |
 |---|---|---|
-| **unit-tester** | 함수/모듈 단위 테스트. 코드가 작동하는가? | 각 에이전트 구현 완료 시 |
-| **scenario-tester** | API 흐름, 유저 시나리오 테스트. 전체가 맞게 돌아가는가? | 전체 구현 완료 후 |
+| 머지 전 최종 리뷰 | `codex exec -c model_reasoning_effort=xhigh -s read-only` | 전체 구현 완료 (1회) |
+| 보안 리뷰 | `codex exec -c model_reasoning_effort=xhigh -s read-only` | 사용자 요청 or 보안 민감 코드 |
+| 설계 비판 | `codex exec -c model_reasoning_effort=xhigh -s read-only` | planner 결과물 검토 |
+| 독립 구현 | `codex exec -c model_reasoning_effort=high -s workspace-write` | Claude 쿼터 부족 |
 
 ```
-소규모: unit-tester 1명이 둘 다 겸함
-중규모: unit-tester 1명 (시나리오는 Leader or Codex)
-대규모: unit-tester 1 + scenario-tester 1 분리
-```
-
-**테스터는 코드를 수정하지 않는다.**
-- 버그 발견 → Leader에게 구체적 리포트 (파일, 라인, 증상, 재현 방법)
-- Leader → 해당 도메인 에이전트에게 수정 지시
-- 에이전트 수정 → 테스터 재검증
-
----
-
-## 2. 에이전트 생명주기 & 운영
-
-### 2.1 생명주기
-
-```
-스폰 → 태스크 수행 → 완료 보고 → 대기 (종료 X)
-                                      │
-                        ┌─────────────┤
-                        ▼             ▼
-                   새 태스크 할당   테스터 피드백
-                   (다음 작업)     (버그 수정)
-                        │             │
-                        └─────────────┘
-                              │
-                         전체 통과
-                              │
-                         일괄 종료
-```
-
-**핵심: 전체 작업이 끝날 때까지 에이전트를 종료하지 않는다.**
-- 구현 완료 후 idle → 다음 태스크 or 버그 수정 대기
-- 테스터 피드백 루프가 끝나야 종료
-- 쿼터 부족 시에만 조기 종료
-
-### 2.2 피드백 루프
-
-```
-1. 에이전트 구현 완료 → Leader에게 보고
-2. Leader → unit-tester에게 해당 코드 테스트 지시
-3. unit-tester 결과:
-   - PASS → 다음 단계
-   - FAIL → Leader에게 리포트
-     → Leader가 해당 에이전트에게 수정 지시 (리포트 포함)
-     → 에이전트 수정 → unit-tester 재검증
-     → 2~3회 반복 후에도 실패 → Leader가 직접 개입 or 에스컬레이션
-4. 전체 unit 통과 → scenario-tester (있으면)
-5. scenario 통과 → Codex 리뷰 (있으면) → Leader 최종 머지
-```
-
-### 2.3 워크트리
-
-```
-에이전트 3명 이상 → isolated (자동)
-에이전트 2명 이하 → shared (자동)
-도메인 기반 배치 시 → isolated 강력 권장
-
-isolated 모드:
-  - 에이전트별 독립 워크트리 + 브랜치
-  - 머지: tester 통과 → Leader 승인 → main에 머지
-  - 충돌 시: Leader가 분석 → 해당 에이전트에게 수정 지시
-```
-
-### 2.4 태스크 분배
-
-```
-도메인 기반 배치 시:
-  - 도메인 = 태스크 (자동 매핑)
-  - 각 에이전트는 자기 도메인 파일만 수정
-  - Leader의 분배 부담 최소화
-
-역할 기반 배치 시 (소규모):
-  - Leader가 작업을 독립 단위로 분해
-  - 파일/모듈 경계 기준
-  - 의존성 → blockedBy, 독립 → 병렬
+xhigh → 중요 리뷰/비판에만
+high  → 독립 구현 위임
+매 커밋마다 X → 머지 전 최종 1회만
 ```
 
 ---
 
-## 3. Codex 연계 (선택)
-
-### 3.1 활성화
+## 5. /spawn-team 스킬 동작
 
 ```
-/spawn-team 실행 시 질문: "Codex 사용할까요?"
-  - 사용 → 리뷰 + 코딩 보조 활성화
-  - 사용 안 함 → Codex 관련 전부 스킵
-```
-
-### 3.2 사용 시점
-
-```
-Leader가 Codex를 호출하는 시점:
-
-1. 머지 전 교차 리뷰 (필수급)
-   - 에이전트가 짠 코드를 다른 관점에서 검증
-   - codex exec -c model_reasoning_effort=xhigh -s read-only "리뷰..."
-
-2. 독립 코딩 태스크 (쿼터 유동적)
-   - Claude 에이전트 대신 Codex가 구현
-   - codex exec -c model_reasoning_effort=high -s workspace-write "구현..."
-
-3. 설계 비판 (planner 있을 때)
-   - planner의 설계안을 Codex가 비판
-   - codex exec -c model_reasoning_effort=xhigh -s read-only "비판..."
-
-4. 시나리오 검증 (scenario-tester 대안)
-   - scenario-tester 대신 Codex가 시나리오 점검
-   - codex exec -c model_reasoning_effort=high -s read-only "시나리오 검증..."
-```
-
-### 3.3 쿼터 관리
-
-```
-- Plus 쿼터는 빡빡 → 고가치 작업에만
-- 매 커밋 리뷰 X → 머지 전 최종 리뷰에만
-- xhigh는 중요 리뷰/비판에만, 일반은 high/medium
-- Claude 쿼터 부족 시 → Codex 비중 ↑ (유동적)
-```
-
----
-
-## 4. /spawn-team 스킬 동작
-
-```
-사용자: /spawn-team
-
 Step 1: 프로젝트 분석
-  - 디렉토리 구조, 기술 스택, 파일 수
-  - 도메인 감지 (routes, controllers, pages 기준)
-  - BE/FE 비율 계산
+  기술 스택, 도메인 감지, 에이전트 수 산정
 
-Step 2: 팀 구성 제안 (동적)
-  "4개 BE 도메인, 3개 FE 도메인 감지. 다음 팀을 추천합니다:"
-  - auth-be (sonnet) — auth 관련
-  - tasks-be (sonnet) — tasks 관련
-  - projects-be (sonnet) — projects + notifications 병합
-  - auth-fe (sonnet) — 로그인/회원가입
-  - dashboard-fe (sonnet) — 대시보드/프로젝트목록/보드
-  - unit-tester (haiku) — 단위 테스트
-  - 워크트리: isolated
-  "Codex 교차 리뷰 활성화할까요?"
+Step 2: 팀 구성 제안
+  도메인 목록 + 담당 파일 범위 + 모델 표시
+  감지 실패 시 사용자에게 직접 지정 요청
 
-Step 3: 사용자 승인/조정
-  - "projects-be가 notifications도 하는 게 맞아?"
-  - "FE는 2개로 충분할 것 같은데" → 조정
+Step 3: 사용자 확인
+  팀 구성 승인/조정
+  Codex 리뷰 활성화 여부
 
 Step 4: 팀 스폰
-  - TeamCreate
-  - 도메인별 에이전트 스폰 (담당 파일 범위 프롬프트에 포함)
-  - 워크트리 생성 (isolated)
-  - 테스터 스폰
+  TeamCreate
+  에이전트 스폰 (background 병렬)
+  워크트리 설정 (에이전트 3+ → isolated)
+  스폰 부분 실패 → 전체 롤백 + 사용자 알림
 
 Step 5: 작업 지시 대기
-  - "팀 준비 완료. 작업을 지시해주세요."
-  - 사용자 작업 지시 → Leader가 도메인별 분배
+  "팀 준비 완료. 작업을 지시해주세요."
 
-Step 6: 실행 & 피드백 루프
-  - 에이전트 병렬 구현
-  - 완료 → unit-tester 검증
-  - 실패 → 해당 에이전트 수정 → 재검증
-  - 전체 통과 → Codex 리뷰 (활성화 시) → Leader 최종 머지
+Step 6: 실행 & 피드백 루프 (§3.4)
 
-Step 7: 종료
-  - 전체 머지 완료 → 에이전트 일괄 shutdown
-```
-
----
-
-## 5. 테스트에서 배운 것
-
-### 첫 번째 테스트 (balanced, task-manager-app)
-
-```
-결과:
-  be1 + fe1 병렬 구현 → tester1 순차 검증 → 26 테스트 통과
-
-발견된 개선점:
-  1. 에이전트를 너무 일찍 종료 → 피드백 루프 불가
-  2. 테스터가 코드 수정까지 담당 → 역할 분리 필요
-  3. Codex 리뷰 안 함 → 활용 플로우 부재
-  4. 도메인 분리 안 함 → generic be/fe 비효율
-  5. 워크트리 미사용 → 대규모 시 충돌 위험
-  → 이번 업데이트에서 모두 반영
+Step 7: 종료 (§3.3 조건 충족 시)
+  shutdown_request 일괄 → TeamDelete
 ```
 
 ---
 
 ## 6. 구현 범위
 
-### 완료
-- [x] SKILL.md 초안
-- [x] 첫 번째 테스트 (balanced preset)
+### Phase 1 — MVP (지금)
 
-### 완료된 테스트
-- [x] 도메인 기반 팀 구성 테스트 (auth-be + tasks-projects-be)
-- [x] Codex xhigh 교차 리뷰 테스트 (9개 보안 이슈 발견)
-- [x] 공유 파일 수정 Leader 승인 플로우
-- [x] 에이전트 idle 유지 + 작업 재할당 플로우
+SKILL.md 수정:
+- [ ] allowed-tools에 `TeamDelete` 추가
+- [ ] 에이전트 5명 상한 + 대규모 예시 통일
+- [ ] 워크트리 기준 단일화 (에이전트 수 기준)
+- [ ] Codex 정책 단일화 (머지 전 1회)
+- [ ] circuit breaker 추가
+- [ ] 감지 실패 fallback
+- [ ] 스폰 부분 실패 롤백
+- [ ] Codex degrade 전략
 
-### 다음 테스트
-- [ ] 피드백 루프 테스트 (tester → 에이전트 직접 SendMessage → 수정 → 재검증)
-- [ ] 워크트리 isolated 모드 테스트
-- [ ] Explore 서브에이전트 토큰 효율 측정 (before/after 비교)
-- [ ] 피어 직접 통신 테스트 (FE가 BE에게 직접 API 타입 질문)
+테스트:
+- [ ] 피드백 루프 (tester → 에이전트 → 수정 → 재검증)
+- [ ] circuit breaker (2회 FAIL → debugger → 에스컬레이션)
+- [ ] Codex 최종 리뷰 플로우
 
-### 돌려보고 판단할 것
-- Codex 프록시 에이전트 필요 여부
-- 서브에이전트 전략
-- 로깅/산출물 스펙
-- 대시보드 데이터 계약
-- 오픈소스 패키지 구조
+### Phase 2 — 안정화
+
+- [ ] isolated 워크트리 + 충돌 롤백
+- [ ] 모델 라우팅 기준 구체화
+- [ ] 도메인 간 공유 타입/스키마 변경 플로우
+- [ ] flaky test 처리 (재실행 1회)
+
+### Phase 3 — 확장
+
+- [ ] ralph/SKILL.md 가져와서 피드백 루프에 통합
+- [ ] HUD (omc-hud.mjs 그대로)
+- [ ] Notification (configure-notifications 참고)
 
 ---
 
 ## 기술 배경
 
 - Agent Teams 팀원 1명 ≈ 7x 쿼터 소모
+- idle 상태 = 쿼터 소모 없음 (메시지 받을 때만)
 - teammateMode: "tmux" 설정 완료
 - CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1" 활성화
-- Codex CLI: `codex exec`, 모델 gpt-5.3-codex, reasoning minimal|low|medium|high|xhigh
-- Plus에서 Spark(gpt-5.3-codex-spark) 사용 불가
+- Codex CLI: `codex exec`, reasoning minimal|low|medium|high|xhigh
+- omc 참조: `Yeachan-Heo/oh-my-claudecode` (파일 단위 선택 사용)
