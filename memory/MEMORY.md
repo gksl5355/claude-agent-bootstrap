@@ -47,6 +47,9 @@
 - test-task-manager: 2명 팀, 4버그 수정, 29/29 PASS
 - test-ecommerce: 5명 팀, 8버그 수정, 28/28 unit + 4/4 scenario PASS
 - Debate: debate-design v1 → v2 → v3 (Codex xhigh 2라운드)
+- test-domain-dir: [A] 도메인 디렉토리, 13/13 PASS
+- test-legacy-team: [B] 평면구조 + Plan Mode 게이트 E2E, 13/13 PASS (Codex xhigh 리뷰 포함)
+- test-monolith: [C] architect-agent E2E — app.ts 단일파일 → 도메인 디렉토리 구조, 4/4 PASS
 
 ## 실전에서 발견된 패턴
 - idle 에이전트: 명시적 Bash 명령어 포함한 SendMessage로 깨워야 함

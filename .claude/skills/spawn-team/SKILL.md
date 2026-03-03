@@ -98,6 +98,19 @@ FE: `pages/`, `views/` 내 파일명/폴더명으로 추출
 - planner와 scenario-tester 둘 다 필요하면 5명 상한 재확인 후 하나 제거
 - 워크트리: 에이전트 3명 이상 → isolated, 2명 이하 → shared
 
+### 모델 선택 기준
+
+| 태스크 특성 | 모델 |
+|------------|------|
+| 테스트 실행, 버그 분석, 빌드 수정 | Haiku |
+| 일반 도메인 구현 (BE/FE) | Sonnet |
+| 아키텍처 설계 (planner, architect-agent) | Sonnet |
+| 리뷰 / 독립 분석 / 컨텍스트 분리 | Codex (codex exec) |
+
+- **Haiku**: unit-tester, scenario-tester, debugger, build-fixer (분석/테스트 전용)
+- **Sonnet**: fullstack, {domain}-be/fe, planner, architect-agent (구현)
+- **Codex**: 머지 전 최종 리뷰 / 보안 리뷰 / 설계 비판 (항상 read-only, 팀 멤버 아님)
+
 **구성 예시**
 
 소규모 (TODO앱):
@@ -351,6 +364,28 @@ git -C {worktree-path} diff --name-only main | grep -vE "{domain-file-pattern}"
    옵션: 1) {에이전트 A} 버전  2) {에이전트 B} 버전  3) 수동 병합"
 ```
 
+### 공유 타입/스키마 변경 플로우
+
+공유 파일(types/, utils/, shared/) 변경은 모든 에이전트에게 영향. 특별 절차 적용.
+
+```
+변경 요청 발생 시 (에이전트 → Leader 보고):
+
+1. Leader가 변경 분석:
+   - 비파괴적 (필드 추가, 새 타입) → 즉시 승인 가능
+   - 파괴적 (필드 제거/타입 변경) → Debate 트리거 고려 (irreversible 성격)
+
+2. 영향 에이전트 일시 중단 요청:
+   SendMessage → 관련 에이전트: "공유 타입 변경 예정. 현재 작업 잠시 중단."
+
+3. Leader가 직접 공유 파일 수정 (에이전트에게 위임 금지)
+
+4. 변경 완료 후 영향 에이전트에게 알림:
+   "공유 타입 변경 완료: {변경 내용}. 해당 부분 적용 후 작업 재개."
+
+5. 모든 에이전트 적용 완료 확인 → unit-tester 재실행
+```
+
 ## Step 5: 작업 지시 대기
 
 팀 스폰 완료 후 표시:
@@ -454,6 +489,8 @@ Step 1-2에서 구조 타입 [C] (불명확/레거시) 판정 시:
 종료 조건 (AND):
   1. 모든 TaskList 항목 completed
   2. unit-tester PASS
+     flaky 의심 시 (코드 변경 없이 재실행하면 결과가 달라짐):
+       → 재실행 1회. PASS → 정상으로 간주. FAIL → circuit breaker 진입
   3. scenario-tester PASS (있을 때)
   4. Codex 리뷰 완료 (활성화 시)
 

@@ -258,9 +258,9 @@ SKILL.md 수정:
 - [x] circuit breaker (2회 FAIL → debugger → 에스컬레이션) — SKILL.md 구현
 - [x] [A] 도메인 디렉토리 소유 구조 — test-domain-dir 13/13 PASS
 - [x] [B] 평면 구조 파일 레벨 MECE — test-ecommerce 28/28 PASS
-- [ ] [C] architect-agent E2E (설계 완료, 레거시 프로젝트 필요)
-- [ ] Codex 최종 리뷰 플로우 E2E
-- [ ] Plan Mode 승인 게이트 E2E
+- [x] [C] architect-agent E2E — test-monolith (84줄 단일 파일 → 도메인 디렉토리 4/4 PASS)
+- [x] Codex 최종 리뷰 플로우 E2E — xhigh read-only 작동 확인
+- [x] Plan Mode 승인 게이트 E2E — test-legacy-team 3명, 계획 제출/승인 플로우 13/13 PASS
 
 ### Phase 2 — 안정화
 
@@ -269,15 +269,15 @@ SKILL.md 수정:
 - [x] 머지 전 경계 위반 체크 (git diff --name-only)
 - [x] Plan Mode 승인 게이트 (에이전트 3명+)
 - [x] Debate Mode (Codex xhigh 적대적 검토, 2라운드 상한)
-- [ ] 모델 라우팅 기준 구체화
-- [ ] 도메인 간 공유 타입/스키마 변경 플로우 실전 테스트
-- [ ] flaky test 처리 (재실행 1회)
+- [x] 모델 라우팅 기준 구체화 (SKILL.md Step 2 모델 선택 기준 테이블 추가)
+- [x] 도메인 간 공유 타입/스키마 변경 플로우 (SKILL.md 프로토콜 추가)
+- [x] flaky test 처리 — 재실행 1회 로직 SKILL.md 종료 조건에 추가
 
 ### Phase 3 — 확장
 
-- [ ] ralph/SKILL.md 가져와서 피드백 루프에 통합
-- [ ] HUD (omc-hud.mjs 그대로)
-- [ ] Notification (configure-notifications 참고)
+- [x] ralph/SKILL.md — 피드백 루프 통합 버전 작성 (.claude/skills/ralph/SKILL.md)
+- [x] HUD — statusline 설정 스킬 작성 (.claude/skills/hud/SKILL.md)
+- [x] Notification — Telegram/Discord/Slack 설정 스킬 작성 (.claude/skills/configure-notifications/SKILL.md)
 
 ---
 
