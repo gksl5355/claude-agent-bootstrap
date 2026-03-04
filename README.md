@@ -129,15 +129,15 @@ COMPLEX 작업에서도 계획은 팀의 방향을 잡아주는 것이지, 줄�
 ### 자동 (권장)
 
 ```bash
-git clone https://github.com/your-username/team-orchestrator.git
+git clone https://github.com/gksl5355/claude-agent-bootstrap.git
 cd team-orchestrator
 ./install.sh
 ```
 
-### 수동
+### 수동 (전체)
 
 ```bash
-git clone https://github.com/your-username/team-orchestrator.git
+git clone https://github.com/gksl5355/claude-agent-bootstrap.git
 cd team-orchestrator
 
 mkdir -p ~/.claude/skills
@@ -145,6 +145,25 @@ for skill in spawn-team debate ralph hud configure-notifications; do
   ln -sf "$(pwd)/.claude/skills/$skill" ~/.claude/skills/$skill
 done
 ```
+
+### 수동 (선택)
+
+원하는 스킬만 골라서 설치할 수 있다. `spawn-team`은 핵심이므로 항상 포함 권장.
+
+```bash
+# 예: spawn-team + debate만 설치
+mkdir -p ~/.claude/skills
+ln -sf "$(pwd)/.claude/skills/spawn-team" ~/.claude/skills/spawn-team
+ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
+```
+
+| 스킬 | 독립 사용 | 의존성 |
+|------|-----------|--------|
+| `spawn-team` | O | 없음 (핵심) |
+| `debate` | O | 없음 (단독 or spawn-team 내) |
+| `ralph` | X | spawn-team 필요 |
+| `hud` | O | 없음 |
+| `configure-notifications` | O | 없음 |
 
 ### 설정
 
