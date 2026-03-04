@@ -108,6 +108,16 @@ check "$ST" "런타임 토큰 절약" "Phase 4: 런타임 섹션"
 check "$ST" "반복 Read 금지" "Phase 4: 반복 Read 방지"
 check "$ST" "핵심만 추출" "Phase 4: output 핵심 추출"
 check "$ST" "탐색.*구현.*섞지" "Phase 4: 탐색/구현 분리"
+check "$ST" "파일 15개 초과" "Phase 4: 에이전트 파일 읽기 한도"
+
+# --- 컨텍스트 관리 ---
+check "$ST" "상태: DONE" "보고 포맷: DONE"
+check "$ST" "상태: FAIL|ERR:" "보고 포맷: FAIL/ERR 블록"
+check "$ST" "Leader 보고 포맷" "Leader 보고 포맷 섹션"
+check "$ST" "Wave.*완료.*요약|wave.*summary" "Wave 전환 요약"
+check "$ST" "1500자" "Wave 요약 상한"
+check "$ST" "numstat" "머지 전 numstat 확인"
+check "$ST" "Leader 읽기" "Leader 읽기 가이드라인"
 
 # --- Step 6 ---
 check "$ST" "Step 6.*작업 지시" "Step 6 존재"

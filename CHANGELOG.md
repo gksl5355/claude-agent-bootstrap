@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [0.4.0] - 2026-03-04
+
+### Added
+- **에이전트 보고 이중 포맷**: DONE=3줄 간결, FAIL/BLOCKED=구조화 ERR 블록 (테스트명/기대vs실제/위치/재현) — 컨텍스트 절감과 진단 정보 보존 양립
+- **에이전트 파일 읽기 한도**: 15개 초과 시 탐색 중단 → 요약 후 구현. 에이전트 컨텍스트 overflow 방지 (가장 빈번한 원인 대응)
+- **Wave 전환 요약**: COMPLEX Wave 완료 시 `/tmp/wave-N-summary.md` 기록 (결정/미결/검증/다음, 1500자 상한). 자동 압축 전 핵심 정보 anchor 역할
+- **Leader 리스크 기반 읽기**: DONE 건은 `git diff --numstat` 확인만. 고위험(공개 API·auth·payment·100+LOC·FAIL 후) 건은 hunk 직접 확인
+- **테스트 8개 추가**: 컨텍스트 관리 체크포인트 (총 113개)
+
+### Notes
+- 이 변경으로 컨텍스트 overflow가 **완전히** 방지되지는 않음. 에이전트 파일 한도 + Wave 요약이 가장 큰 영향. 극단적 대형 프로젝트(50+ 파일 에이전트)는 추가 대책 필요.
+- debate 2라운드 검증 완료 (R1: BLOCK 2건 → R2: 전부 해소)
+
 ## [0.3.1] - 2026-03-04
 
 ### Fixed

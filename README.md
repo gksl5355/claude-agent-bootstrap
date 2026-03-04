@@ -1,12 +1,12 @@
 # Team Orchestrator
 
-![Version](https://img.shields.io/badge/version-0.3.1-blue)
+![Version](https://img.shields.io/badge/version-0.4.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 
 **Claude Code Agent Teams를 프로젝트에 맞게 동적으로 구성하고, 완료까지 운영하는 오케스트레이터.**
 
-> **v0.3.1** — Worktree isolation 강화 + 선택 설치 | [전체 릴리즈 노트](CHANGELOG.md)
+> **v0.4.0** — 컨텍스트 overflow 방어: 에이전트 파일 한도 + Wave 요약 + Leader 읽기 예산 | [전체 릴리즈 노트](CHANGELOG.md)
 
 `/spawn-team` 한 마디면 프로젝트를 분석하고, 도메인을 감지하고, 에이전트를 구성하고, 구현-테스트-머지까지 피드백 루프를 돌린다.
 
