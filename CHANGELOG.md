@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
+## [0.3.1] - 2026-03-04
+
+### Fixed
+- **Worktree isolation 누락 방지**: 에이전트 3명+ 시 `isolation: "worktree"` 설정이 생략되어 main에서 직접 작업하는 문제 수정
+  - Step 5-2에 명시적 4단계 체크리스트 추가 (숫자 기준 + 금지 조건)
+  - 운영 규칙에 "main 직접 작업 금지" 명시
+
+### Changed
+- **README**: 버전 배지 + CHANGELOG 링크 추가, 개별 스킬 선택 설치 안내, git URL 실제 주소로 수정
+
 ## [0.3.0] - 2026-03-04
 
 ### Added
