@@ -160,6 +160,7 @@ AskUserQuestion 2개:
 
 ## 탐색 (토큰 효율화)
 {≤5파일: 직접 Read+Grep | 6-15: Explore→Grep/sg→Read | 16+: Explore→sg→Grep→필요한 파일만 Read}
+**Read 전 크기 확인**: `wc -l {file}` → 500줄+ 이면 Read에 반드시 offset+limit 사용. 전체 Read 금지.
 
 ## 런타임 토큰 절약
 - 같은 파일 반복 Read 금지 — 한 번 읽은 내용은 메모리에 유지하고 재사용.
@@ -219,15 +220,20 @@ Codex: 활성화/비활성화 | 워크트리: isolated/shared
 ### 7-1. 태스크 분배
 SendMessage로 지시. 독립=병렬, 의존=blockedBy. (COMPLEX) Wave 순서 준수.
 
-### 7-1-b. Wave 전환 요약 (COMPLEX — Wave 완료 시 필수)
+### 7-1-b. 중간 요약 (컨텍스트 관리)
+
+**COMPLEX**: Wave 완료 시마다 필수.
+**MEDIUM**: 전체 에이전트 작업 완료 후 머지 전 1회.
+**SIMPLE**: 생략 (빠른 완료로 누적 없음).
+
 ```
-> /tmp/wave-{N}-summary.md (상한 1500자)
-결정: {이번 Wave 결정사항}
+> /tmp/summary-{wave|final}.md (상한 1500자)
+결정: {이번 단계 결정사항}
 미결: {미해결 이슈}
 검증: PASS {n} / FAIL {n}
-다음: {Wave N+1 목표}
+다음: {다음 단계 목표}
 ```
-이후 이전 Wave 대화 대신 이 파일을 참조 우선. 자가 체크: [ ] 1500자 이하 [ ] 전 에이전트 상태 포함 [ ] 미결 누락 없음
+이후 이전 대화 대신 이 파일을 참조 우선. 자가 체크: [ ] 1500자 이하 [ ] 전 에이전트 상태 포함 [ ] 미결 누락 없음
 
 ### 7-2. 구현 → 테스트 루프
 ```
