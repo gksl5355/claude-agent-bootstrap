@@ -4,7 +4,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 
-**Claude Code Agent Teams를 프로젝트에 맞게 동적으로 구성하고, 완료까지 운영하는 오케스트레이터.**
+**Claude Code Agent Teams를 프로젝트에 맞게 동적으로 구성하고, 완료까지 운영하는 오케스트레이터**
 
 > **v0.4.0** — 컨텍스트 overflow 방어: 에이전트 파일 한도 + Wave 요약 + Leader 읽기 예산 | [Releases](https://github.com/gksl5355/claude-agent-bootstrap/releases)
 
