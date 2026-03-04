@@ -237,7 +237,8 @@ Step 7   실행 루프       구현 → 테스트 → 피드백 → 머지 → C
 |------|------|------|
 | 테스트, 디버그, 빌드 수정 | Haiku | 비용 효율 |
 | 도메인 구현 (BE/FE) | Sonnet | 균형 |
-| 아키텍처 설계 | Sonnet | 고급 추론 |
+| 아키텍처 설계 (MEDIUM 이하) | Sonnet | 고급 추론 |
+| Leader, planner, architect (COMPLEX) | **Opus** | 깊은 추론 필요 |
 | 최종 리뷰, 설계 비판 | Codex xhigh | 독립적 관점 |
 
 ### Debate Mode
