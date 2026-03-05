@@ -105,24 +105,44 @@ Auto-generated from Step 1 → AskUserQuestion ×1:
 Q1 core objective (1-2 sentences) / Q2 success criteria ×3 (measurable) / Q3 constraints / Q4 risks / Q5 ordering preference
 
 ### 3-2. Wave Decomposition (auto, based on interview + manifest)
+
+3–5 waves as needed (not fixed). Typical structure:
 ```
 Wave 1 (parallel): Foundation — types, schemas, shared interfaces
-Wave 2 (parallel): Core — independent domain logic per domain
-Wave 3 (sequential): Integration — cross-domain connections, shared files
-Wave 4 (parallel): Verification — unit + scenario tests
-Wave 5: Final — Codex review + merge
+Wave 2 (parallel): Core — domain logic per agent
+Wave 3 (sequential): Integration — cross-domain, shared files
+Wave N (parallel): Verification — unit + scenario tests
+Wave Final: Codex review + merge
 ```
-Each Wave: parallel tasks, dependencies, assigned agent, completion criteria. Distribute Q2 success criteria across domains.
+Each Wave: completion criterion, assigned agents, parallelism flag. Distribute Q2 success criteria across domains.
+
+**Task format (mandatory per task, COMPLEX only):**
+```
+Task: {action verb} {target file/module} → {expected output}
+Accepts: {concrete, testable criterion — no vague "implement X"}
+BlockedBy: {task-id | none}
+```
+Rules: ≤10 tasks per agent. Accepts missing → task not issued. Scope: ≤200 LOC change or 1 module.
 
 ### 3-3. Validation + Confirmation
-Auto-check: measurable? circular deps? ≤10 tasks per agent? risks reflected?
-Violation → AskUserQuestion. Final approval → Step 4.
+
+**4-criteria check (all must pass):**
+1. **Clarity** — every task has a concrete Accepts criterion
+2. **Verifiability** — Accepts is testable/measurable (not "looks good")
+3. **Context sufficiency** — agent can execute without asking for missing info
+4. **Wave coherence** — Wave order matches dependency direction, no circular deps
+
+Violation → fix before proceeding. ≤10 tasks per agent enforced.
+
+**Gap+Risk Review (Leader self-check before user approval):**
+"3 requirements likely missed? 3 ways this plan could fail?"
+→ Resolve gaps in plan, surface top risk to user.
 
 ## Step 4: User Confirmation
 
 **SIMPLE**: AskUserQuestion ×1 — team composition only. Codex auto-disabled. On confirmation → spawn immediately, start original request automatically.
 **MEDIUM/COMPLEX**: AskUserQuestion ×2:
-1. **Team composition** — per-agent scope (COMPLEX: includes Wave summary). Options: as recommended / adjust (specify changes in free text)
+1. **Team composition** — per-agent scope (COMPLEX: includes Wave plan + top risks from Gap+Risk Review). Options: as recommended / adjust (specify changes in free text)
 2. **Codex activation** — enable pre-merge final review? (adds one AI code review pass before merge)
 
 ## Step 5: Spawn Team
@@ -171,7 +191,7 @@ MEDIUM/COMPLEX → "Starting: '{original_request}'. Any additions before I begin
 ## Step 7: Execution & Feedback Loop
 
 ### 7-1. Task Distribution
-SendMessage to assign. Independent = parallel, dependent = blockedBy. (COMPLEX) Follow Wave order — Leader sends "WAVE {N} COMPLETE" to gate next Wave start.
+SendMessage to assign using Task format from Step 3-2 (COMPLEX) or plain description (SIMPLE/MEDIUM). Independent = parallel, dependent = blockedBy. (COMPLEX) Follow Wave order — Leader sends "WAVE {N} COMPLETE" to gate next Wave start.
 
 ### 7-1-b. Mid-Run Summary (context management)
 
@@ -206,7 +226,7 @@ Agent self-spawns build-fixer sub-agent (haiku, depth-1, scoped to domain). Fail
 4. Completion report
 
 ### 7-4. Shutdown
-Conditions (AND): TaskList all completed + unit-tester PASS + scenario-tester PASS + Codex done + (COMPLEX) Wave + criteria met.
+Conditions (AND): TaskList all completed + unit-tester PASS + scenario-tester PASS + Codex done + (COMPLEX) all Wave completion criteria from Step 3-3 satisfied.
 → shutdown_request to all → TeamDelete. Quota threshold → immediate alert → scale down / terminate.
 
 ## Debate Mode
