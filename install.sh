@@ -5,9 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$SCRIPT_DIR/.claude/skills"
 TARGET_DIR="$HOME/.claude/skills"
 SETTINGS_FILE="$HOME/.claude/settings.json"
-CLAUDE_BIN="$HOME/.local/bin/claude"
-CLAUDE_REAL="$HOME/.local/bin/claude.real"
 WRAPPER_SRC="$SCRIPT_DIR/.claude/scripts/claude-model-wrapper.sh"
+VERSION_DIR="$HOME/.local/share/claude/versions"
 
 SKILLS=(spawn-team debate ralph hud configure-notifications)
 
@@ -26,45 +25,46 @@ echo ""
 
 # ── 2. Model wrapper ───────────────────────────────────────────────────────
 echo "[2/4] Installing model override wrapper..."
-echo "  Claude Code hardcodes Opus for team agents. The wrapper intercepts"
-echo "  the spawn call and replaces the model argument with Sonnet (or Haiku)."
-echo "  Requires teammateMode=tmux — without it, agents run in-process and"
-echo "  bypass this wrapper entirely."
+echo "  Claude Code hardcodes claude-opus-4-6 when spawning team agents."
+echo "  The wrapper intercepts spawns at the versioned binary path and"
+echo "  substitutes Sonnet or Haiku before the real binary runs."
 echo ""
 
-if [ ! -f "$CLAUDE_BIN" ] && [ ! -L "$CLAUDE_BIN" ]; then
-  echo "  ✗ claude binary not found at $CLAUDE_BIN — skipping wrapper install"
+# Detect current Claude version directory
+VER=$(ls "$VERSION_DIR" 2>/dev/null | grep -v '\.real' | sort -V | tail -1)
+
+if [ -z "$VER" ]; then
+  echo "  ✗ Claude binary not found in $VERSION_DIR — skipping wrapper install"
   echo "    Install Claude Code first, then re-run this script."
   WRAPPER_SKIPPED=true
 else
-  # Already wrapped?
-  if [ -f "$CLAUDE_REAL" ]; then
-    echo "  ℹ Wrapper already installed (claude.real exists). Updating wrapper script."
-    cp "$WRAPPER_SRC" "$CLAUDE_BIN"
-    chmod +x "$CLAUDE_BIN"
-    echo "  ✓ Wrapper updated"
+  VERSIONED_BIN="$VERSION_DIR/$VER"
+  VERSIONED_REAL="$VERSION_DIR/$VER.real"
+  echo "  Detected Claude version: $VER"
+
+  if [ -f "$VERSIONED_REAL" ]; then
+    # Already wrapped — update wrapper content only
+    echo "  ℹ Wrapper already installed. Updating wrapper script."
+    cp "$WRAPPER_SRC" "$VERSIONED_BIN"
+    chmod +x "$VERSIONED_BIN"
+    echo "  ✓ Wrapper updated at $VERSIONED_BIN"
   else
-    # First install: preserve original, install wrapper
-    REAL_PATH=$(readlink -f "$CLAUDE_BIN")
-    echo "  Real binary: $REAL_PATH"
-
-    # Create claude.real → actual binary
-    ln -sf "$REAL_PATH" "$CLAUDE_REAL"
-    echo "  ✓ claude.real → $REAL_PATH"
-
-    # Replace claude with wrapper
-    rm -f "$CLAUDE_BIN"
-    cp "$WRAPPER_SRC" "$CLAUDE_BIN"
-    chmod +x "$CLAUDE_BIN"
-    echo "  ✓ claude → wrapper (calls claude.real internally)"
+    # First install: move real binary aside, install wrapper in its place
+    mv "$VERSIONED_BIN" "$VERSIONED_REAL"
+    cp "$WRAPPER_SRC" "$VERSIONED_BIN"
+    chmod +x "$VERSIONED_BIN"
+    echo "  ✓ $VER.real → real binary"
+    echo "  ✓ $VER     → wrapper (intercepts all agent spawns)"
   fi
 
-  # Verify wrapper calls claude.real (not itself)
-  if grep -q 'claude.real' "$CLAUDE_BIN"; then
-    echo "  ✓ Wrapper verified"
-  else
-    echo "  ✗ Wrapper looks wrong — check $CLAUDE_BIN"
-  fi
+  # Keep ~/.local/bin/claude pointing to the wrapper
+  ln -sf "$VERSIONED_BIN"  "$HOME/.local/bin/claude"
+  ln -sf "$VERSIONED_REAL" "$HOME/.local/bin/claude.real"
+  echo "  ✓ ~/.local/bin/claude → wrapper"
+  echo ""
+  echo "  NOTE: If Claude Code updates to a new version, re-run ./install.sh"
+  echo "  to reinstall the wrapper at the new versioned path."
+
   WRAPPER_SKIPPED=false
 fi
 echo ""
@@ -112,10 +112,10 @@ for skill in "${SKILLS[@]}"; do
 done
 
 if [ "$WRAPPER_SKIPPED" = false ]; then
-  if [ -f "$CLAUDE_REAL" ] && [ -x "$CLAUDE_BIN" ]; then
+  if [ -f "$VERSIONED_REAL" ] && [ -x "$VERSIONED_BIN" ] && head -1 "$VERSIONED_BIN" | grep -q '^#!'; then
     echo "  ✓ model wrapper: active (team agents will spawn as Sonnet)"
   else
-    echo "  ✗ model wrapper: not active"
+    echo "  ✗ model wrapper: not active — check $VERSIONED_BIN"
     OK=false
   fi
 fi

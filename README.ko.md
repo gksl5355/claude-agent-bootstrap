@@ -2,7 +2,7 @@
 
 [🇺🇸 English](README.md)
 
-![Version](https://img.shields.io/badge/version-0.5.0-blue)
+![Version](https://img.shields.io/badge/version-0.5.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 [![GitHub Release](https://img.shields.io/github/v/release/gksl5355/claude-agent-bootstrap)](https://github.com/gksl5355/claude-agent-bootstrap/releases)
@@ -186,6 +186,8 @@ Step 7   실행 루프       구현 → 테스트 → 피드백 → 머지 → C
 | 테스트, 디버그, 빌드 수정 (서브에이전트) | Haiku | 경량, 자기 스폰 |
 | 최종 리뷰, 설계 비판 | Codex xhigh | 독립적 관점 |
 
+> **작동 방식:** Claude Code는 팀 에이전트 스폰 시 `claude-opus-4-6`을 하드코딩하며 설정으로 변경 불가. `./install.sh`이 versioned 바이너리 경로에 셸 래퍼를 설치해 스폰을 인터셉트하고, 실제 바이너리 실행 전에 Sonnet/Haiku로 교체한다. Anthropic이 에이전트 모델 설정을 공식 지원하면 래퍼는 불필요해진다.
+
 ### 에이전트 구성
 
 ```
@@ -216,7 +218,8 @@ Step 7   실행 루프       구현 → 테스트 → 피드백 → 머지 → C
 | Permission denied | `~/.claude/settings.json`에 `"Skill(spawn-team)"` 허용 추가 |
 | Agent Teams 안 됨 | Claude Max 확인 + `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` 설정 |
 | 에이전트가 Opus로 뜸 | tmux 안에서 Claude Code 실행 필수. `tmux new-session -s dev && claude` |
-| 모델 wrapper 미작동 | `cat /tmp/claude-wrapper.log` 확인 — model 스왑 로그 있어야 함 |
+| 모델 wrapper 미작동 | `cat /tmp/claude-wrapper.log` — `MODEL SWAP: claude-opus-4-6 → claude-sonnet-4-6` 있어야 함. 없으면 `./install.sh` 재실행 |
+| Claude Code 업데이트됨 | `./install.sh` 재실행 — 새 versioned 바이너리 경로에 래퍼 재설치 필요 |
 | Codex exec 실패 | 자동 스킵됨. 설치: `npm install -g @openai/codex` |
 | 에이전트 idle 상태 | 정상. 메시지 받을 때만 쿼터 소모. 비용 없음. |
 

@@ -2,7 +2,7 @@
 
 [🇰🇷 한국어](README.ko.md)
 
-![Version](https://img.shields.io/badge/version-0.5.0-blue)
+![Version](https://img.shields.io/badge/version-0.5.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 [![GitHub Release](https://img.shields.io/github/v/release/gksl5355/claude-agent-bootstrap)](https://github.com/gksl5355/claude-agent-bootstrap/releases)
@@ -186,6 +186,8 @@ Step 7   Execution loop            Implement → Test → Feedback → Merge →
 | Tests, debug, build fixes (sub-agents) | Haiku | Lightweight, self-spawned |
 | Final review, design critique | Codex xhigh | Independent perspective |
 
+> **How this works:** Claude Code hardcodes `claude-opus-4-6` for team agent spawns with no config override available. `./install.sh` intercepts spawns at the binary level (shell wrapper replaces the versioned binary) and substitutes Sonnet/Haiku before the real binary runs. Expected to become unnecessary once Anthropic exposes agent model configuration.
+
 ### Team Shapes
 
 ```
@@ -216,7 +218,8 @@ Large  (5):    planner(sonnet) + domain(sonnet) × 2 + unit-tester + scenario-te
 | Permission denied | Add `"Skill(spawn-team)"` to `~/.claude/settings.json` permissions |
 | Agent Teams not working | Verify Claude Max + `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` |
 | Agents running as Opus | You must run Claude Code inside tmux. `tmux new-session -s dev && claude` |
-| Model wrapper not intercepting | Check `cat /tmp/claude-wrapper.log` — should show args with model swap |
+| Model wrapper not intercepting | Check `cat /tmp/claude-wrapper.log` — agent spawns should show `MODEL SWAP: claude-opus-4-6 → claude-sonnet-4-6`. If empty, re-run `./install.sh` |
+| Claude Code updated | Re-run `./install.sh` — the wrapper must be reinstalled at the new versioned binary path |
 | Codex exec failure | Auto-skipped. Install: `npm install -g @openai/codex` |
 | Agent idle | Normal. Only consumes quota on message receipt. Zero cost while idle. |
 
