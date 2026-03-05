@@ -26,6 +26,13 @@ cd claude-agent-bootstrap
 ./install.sh
 ```
 
+그 다음 **tmux 안에서 Claude Code 실행** (모델 라우팅에 필수):
+
+```bash
+tmux new-session -s dev
+claude
+```
+
 그 다음 Claude Code에서:
 
 ```
@@ -66,6 +73,10 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 
 - **Claude Max** (Agent Teams 지원)
 - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (`~/.claude/settings.json`)
+- **tmux** — 모델 라우팅이 작동하려면 tmux 세션 안에서 실행해야 함
+  - Anthropic 공식 문서에서도 에이전트 팀의 권장 실행 환경으로 tmux를 명시하고 있음 (split-pane 모드)
+  - tmux 없이 실행하면: 에이전트가 in-process로 뜨고 wrapper가 우회됨 → 전부 Opus로 실행됨
+  - 설치: `sudo apt install tmux` (Ubuntu) / `brew install tmux` (macOS)
 - Codex CLI (선택 — `/debate`, 최종 리뷰 시)
 
 <details>
@@ -75,16 +86,17 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 
 ```jsonc
 {
+  "teammateMode": "tmux",
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "teammateMode": "tmux"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "permissions": {
     "allow": [
       "Skill(spawn-team)",
       "Skill(debate)"
     ]
-  }
+  },
+  "model": "sonnet"
 }
 ```
 
@@ -203,6 +215,8 @@ Step 7   실행 루프       구현 → 테스트 → 피드백 → 머지 → C
 | "Skill not found: spawn-team" | `ls -la ~/.claude/skills/spawn-team` 확인. 없으면 `./install.sh` 재실행 |
 | Permission denied | `~/.claude/settings.json`에 `"Skill(spawn-team)"` 허용 추가 |
 | Agent Teams 안 됨 | Claude Max 확인 + `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` 설정 |
+| 에이전트가 Opus로 뜸 | tmux 안에서 Claude Code 실행 필수. `tmux new-session -s dev && claude` |
+| 모델 wrapper 미작동 | `cat /tmp/claude-wrapper.log` 확인 — model 스왑 로그 있어야 함 |
 | Codex exec 실패 | 자동 스킵됨. 설치: `npm install -g @openai/codex` |
 | 에이전트 idle 상태 | 정상. 메시지 받을 때만 쿼터 소모. 비용 없음. |
 

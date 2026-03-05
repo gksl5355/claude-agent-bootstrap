@@ -26,6 +26,13 @@ cd claude-agent-bootstrap
 ./install.sh
 ```
 
+Then **start Claude Code inside tmux** (required for model routing):
+
+```bash
+tmux new-session -s dev
+claude
+```
+
 Then in Claude Code:
 
 ```
@@ -66,6 +73,10 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 
 - **Claude Max** (Agent Teams support)
 - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `~/.claude/settings.json`
+- **tmux** — team agents must run inside a tmux session for model routing to work
+  - Anthropic's own documentation recommends tmux as the preferred entry point for agent teams (split-pane mode)
+  - Without tmux: agents run in-process and the model wrapper is bypassed — all agents default to Opus
+  - Install: `sudo apt install tmux` (Ubuntu) / `brew install tmux` (macOS)
 - Codex CLI (optional — for `/debate` and final review)
 
 <details>
@@ -75,16 +86,17 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 
 ```jsonc
 {
+  "teammateMode": "tmux",
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "teammateMode": "tmux"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "permissions": {
     "allow": [
       "Skill(spawn-team)",
       "Skill(debate)"
     ]
-  }
+  },
+  "model": "sonnet"
 }
 ```
 
@@ -203,6 +215,8 @@ Large  (5):    planner(sonnet) + domain(sonnet) × 2 + unit-tester + scenario-te
 | "Skill not found: spawn-team" | Check `ls -la ~/.claude/skills/spawn-team`. If missing, re-run `./install.sh` |
 | Permission denied | Add `"Skill(spawn-team)"` to `~/.claude/settings.json` permissions |
 | Agent Teams not working | Verify Claude Max + `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` |
+| Agents running as Opus | You must run Claude Code inside tmux. `tmux new-session -s dev && claude` |
+| Model wrapper not intercepting | Check `cat /tmp/claude-wrapper.log` — should show args with model swap |
 | Codex exec failure | Auto-skipped. Install: `npm install -g @openai/codex` |
 | Agent idle | Normal. Only consumes quota on message receipt. Zero cost while idle. |
 
