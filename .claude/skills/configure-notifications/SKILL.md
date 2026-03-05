@@ -12,42 +12,42 @@ triggers:
 
 # Configure Notifications
 
-spawn-team 세션 이벤트 발생 시 알림을 받는다.
+Receive alerts when spawn-team session events occur.
 
-**알림 이벤트:**
-- 팀 전체 작업 완료 (shutdown_request 전 시점)
-- circuit breaker 발동 (사용자 판단 필요)
-- 에이전트 스폰 실패 (롤백 발생)
-- 쿼터 임계치 도달
-- AskUserQuestion 대기 중 (입력 필요)
+**Alert events:**
+- Team-wide task completion (before shutdown_request)
+- Circuit breaker fired (user judgment needed)
+- Agent spawn failure (rollback occurred)
+- Quota threshold reached
+- AskUserQuestion pending (input needed)
 
-**지원 플랫폼:** Telegram / Discord (Webhook) / Slack (Webhook)
+**Supported platforms:** Telegram / Discord (Webhook) / Slack (Webhook)
 
 ---
 
-## 플랫폼 선택
+## Platform Selection
 
 AskUserQuestion:
-**"어떤 알림 서비스를 사용할까요?"**
-1. **Telegram** — 모바일/데스크탑. Bot token + chat ID
-2. **Discord** — Webhook URL. 서버 채널 연동
+**"Which notification service would you like to use?"**
+1. **Telegram** — Mobile/desktop. Requires Bot token + chat ID
+2. **Discord** — Webhook URL. Server channel integration
 3. **Slack** — Incoming Webhook URL
 
 ---
 
-## Telegram 설정
+## Telegram Setup
 
-### Bot 토큰 발급
-1. Telegram에서 @BotFather 검색
-2. `/newbot` 전송 → 이름/username 설정
-3. Token 수신 (형식: `123456789:ABCdef...`)
+### Get Bot Token
+1. Search for @BotFather in Telegram
+2. Send `/newbot` → set name/username
+3. Receive token (format: `123456789:ABCdef...`)
 
-### Chat ID 확인
-1. 봇에게 `/start` 전송
-2. `https://api.telegram.org/bot{TOKEN}/getUpdates` 방문
-3. `"chat":{"id":YOUR_CHAT_ID}` 값 복사
+### Get Chat ID
+1. Send `/start` to your bot
+2. Visit `https://api.telegram.org/bot{TOKEN}/getUpdates`
+3. Copy `"chat":{"id":YOUR_CHAT_ID}` value
 
-### 설정 저장
+### Save Configuration
 ```bash
 CONFIG=~/.claude/.spawn-notifications.json
 cat > "$CONFIG" << EOF
@@ -63,24 +63,24 @@ cat > "$CONFIG" << EOF
 EOF
 ```
 
-### 테스트
+### Test
 ```bash
 TOKEN="{BOT_TOKEN}"
 CHAT_ID="{CHAT_ID}"
 curl -s "https://api.telegram.org/bot${TOKEN}/sendMessage" \
-  -d "chat_id=${CHAT_ID}" \
-  -d "text=spawn-team 알림 설정 완료 ✓"
+  --data-urlencode "chat_id=${CHAT_ID}" \
+  --data-urlencode "text=spawn-team notification setup complete ✓"
 ```
 
 ---
 
-## Discord 설정
+## Discord Setup
 
-### Webhook 생성
-1. Discord 서버 설정 → 연동 → 웹후크 → 새 웹후크
-2. 채널 선택 → Webhook URL 복사
+### Create Webhook
+1. Discord server settings → Integrations → Webhooks → New Webhook
+2. Select channel → Copy Webhook URL
 
-### 설정 저장
+### Save Configuration
 ```bash
 CONFIG=~/.claude/.spawn-notifications.json
 cat > "$CONFIG" << EOF
@@ -95,23 +95,23 @@ cat > "$CONFIG" << EOF
 EOF
 ```
 
-### 테스트
+### Test
 ```bash
 curl -s -H "Content-Type: application/json" \
-  -d '{"content": "spawn-team 알림 설정 완료 ✓"}' \
+  -d '{"content": "spawn-team notification setup complete ✓"}' \
   "{WEBHOOK_URL}"
 ```
 
 ---
 
-## Slack 설정
+## Slack Setup
 
-### Webhook 생성
+### Create Webhook
 1. https://api.slack.com/apps → Create New App
-2. Incoming Webhooks → 활성화 → Add New Webhook
-3. 채널 선택 → URL 복사 (`https://hooks.slack.com/services/...`)
+2. Incoming Webhooks → Enable → Add New Webhook
+3. Select channel → Copy URL (`https://hooks.slack.com/services/...`)
 
-### 설정 저장
+### Save Configuration
 ```bash
 CONFIG=~/.claude/.spawn-notifications.json
 cat > "$CONFIG" << EOF
@@ -126,18 +126,18 @@ cat > "$CONFIG" << EOF
 EOF
 ```
 
-### 테스트
+### Test
 ```bash
 curl -s -H "Content-Type: application/json" \
-  -d '{"text": "spawn-team 알림 설정 완료 ✓"}' \
+  -d '{"text": "spawn-team notification setup complete ✓"}' \
   "{WEBHOOK_URL}"
 ```
 
 ---
 
-## spawn-team에서 알림 전송
+## Sending Notifications from spawn-team
 
-알림을 보낼 시점에 Leader가 직접 실행:
+Leader executes directly at notification points:
 
 ```bash
 send_notification() {
@@ -155,7 +155,7 @@ send_notification() {
       local token=$(jq -r '.telegram.botToken' "$CONFIG")
       local chat=$(jq -r '.telegram.chatId' "$CONFIG")
       curl -s "https://api.telegram.org/bot${token}/sendMessage" \
-        -d "chat_id=${chat}" -d "text=${msg}" > /dev/null
+        --data-urlencode "chat_id=${chat}" --data-urlencode "text=${msg}" > /dev/null
       ;;
     discord)
       local url=$(jq -r '.discord.webhookUrl' "$CONFIG")
@@ -170,14 +170,14 @@ send_notification() {
   esac
 }
 
-# 사용 예:
-# send_notification "팀 작업 완료: test-ecommerce — 28/28 PASS"
-# send_notification "⚠️ circuit breaker 발동: products-be 3회 실패, 판단 필요"
+# Examples:
+# send_notification "Team complete: test-ecommerce — 28/28 PASS"
+# send_notification "⚠️ Circuit breaker fired: products-be 3 failures, judgment needed"
 ```
 
 ---
 
-## 참고
+## Reference
 
-omc의 configure-notifications 전체 문서 (더 많은 플랫폼/이벤트/훅 템플릿):
+omc's configure-notifications full docs (more platforms/events/hook templates):
 - https://github.com/Yeachan-Heo/oh-my-claudecode/tree/main/skills/configure-notifications
