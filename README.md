@@ -170,10 +170,8 @@ Step 7   Execution loop            Implement → Test → Feedback → Merge →
 
 | Role | Model | Rationale |
 |------|-------|-----------|
-| Tests, debug, build fixes | Haiku | Cost-efficient |
-| Domain implementation (BE/FE) | Sonnet | Balanced |
-| Architecture (MEDIUM and below) | Sonnet | Solid reasoning |
-| Leader, planner, architect (COMPLEX) | **Opus** | Deep reasoning required |
+| All team agents (fullstack, BE/FE, planner, architect) | **Sonnet** | Cost-efficient, sufficient reasoning |
+| Tests, debug, build fixes (sub-agents) | Haiku | Lightweight, self-spawned |
 | Final review, design critique | Codex xhigh | Independent perspective |
 
 ### Team Shapes
