@@ -192,9 +192,9 @@ Large  (5):    planner(sonnet) + domain(sonnet) × 2 + unit-tester + scenario-te
 |-------|---------|------|
 | [`/spawn-team`](.claude/skills/spawn-team/SKILL.md) | "set up a team", "spawn team" | Core orchestrator — analyze → plan → compose → execute |
 | [`/debate`](.claude/skills/debate/SKILL.md) | "debate", "architecture review" | Codex xhigh adversarial review (standalone or within spawn-team) |
-| [`/ralph`](.claude/skills/ralph/SKILL.md) | "don't stop until done", "ralph" | PRD-driven completion loop |
+| [`/ralph`](.claude/skills/ralph/SKILL.md) | "don't stop", "ralph" | PRD-driven completion loop |
 | [`/hud`](.claude/skills/hud/SKILL.md) | "hud setup" | Claude Code status bar |
-| [`/configure-notifications`](.claude/skills/configure-notifications/SKILL.md) | "set up notifications" | Telegram / Discord / Slack |
+| [`/configure-notifications`](.claude/skills/configure-notifications/SKILL.md) | "configure notifications" | Telegram / Discord / Slack |
 
 ---
 
