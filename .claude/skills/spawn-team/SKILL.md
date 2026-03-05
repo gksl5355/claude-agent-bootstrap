@@ -60,19 +60,18 @@ Scale: small (1-3 files) = merge candidate, medium (4-9) = 1 independent agent, 
 
 Too many domains → merge by similarity/dependency until ≤5 slots. If all domains are medium+, split largest. Worktree: 3+ agents → isolated, ≤2 → shared.
 
-### Model Selection (complexity-linked)
+### Model Selection
 
 | Model | Purpose | When |
 |-------|---------|------|
-| **Opus** | Leader orchestration, planner, architect-agent | COMPLEX only |
-| Sonnet | fullstack, {domain}-be/fe, planner (MEDIUM and below) | Default implementation |
-| Haiku | unit-tester, scenario-tester, debugger, build-fixer | Test/iteration |
+| Sonnet | All team agents: fullstack, {domain}-be/fe, planner, architect-agent | Default (all complexity levels) |
+| Haiku | Sub-agents only: debugger, build-fixer, unit-tester, scenario-tester | Test/iteration, self-spawned by team agents |
 | Codex xhigh | Pre-merge final review (read-only, not a team member) | Review ×1 |
 
-**Complexity-based model promotion:**
-- **SIMPLE**: Leader=Sonnet, all agents Sonnet/Haiku. No Opus (5x cost).
-- **MEDIUM**: Leader=Sonnet+thinking, planner=Sonnet. Opus unnecessary.
-- **COMPLEX**: Leader=**Opus**, planner=**Opus**, architect-agent=**Opus**. Domain agents stay Sonnet (implementation only).
+**Model policy:**
+- Team agents (TeamCreate spawned): always **Sonnet** regardless of complexity.
+- Sub-agents (self-spawned by team agents via Agent tool): **Haiku** only.
+- No Opus. Sonnet+thinking covers all reasoning needs.
 
 ## Step 2B: Complexity Scoring (Auto)
 
@@ -149,7 +148,7 @@ Violation → fix before proceeding. ≤10 tasks per agent enforced.
 
 ### 5-1. TeamCreate → 5-2. Spawn Agents
 
-Each agent: `subagent_type: "general-purpose"`, `team_name`, `name: "{domain}-{role}"`, `model`, `run_in_background: true`
+Each agent: `subagent_type: "general-purpose"`, `team_name`, `name: "{domain}-{role}"`, `run_in_background: true`
 
 **⚠ Worktree Rules (verify before spawning):**
 1. 3+ agents → **must** set `isolation: "worktree"` (requires git). Never omit.
@@ -217,7 +216,7 @@ Agent done → unit-tester verifies
 Agent self-spawns build-fixer sub-agent (haiku, depth-1, scoped to domain). Failure → Leader / escalation.
 
 ### 7-2-c. Structure [C] — architect-agent (once, before coding)
-**Opus** (legacy structure analysis requires deep reasoning), design directory structure → Leader review → user approval → refactor → convert to [A]. Failure → fallback to [B].
+**Sonnet** (analyze legacy structure, design directory structure) → Leader review → user approval → refactor → convert to [A]. Failure → fallback to [B].
 
 ### 7-3. All Tests Pass
 1. scenario-tester → FAIL → fix → re-verify
@@ -239,7 +238,7 @@ Entry: hard (irreversible=true / impact=3) or soft (risk 6+). Sum 6-7 → Leader
 
 - Idle costs nothing (quota consumed only on message). Keep all agents alive until done.
 - Quota: 1 agent ≈ 7×. Hard cap: 5 agents.
-- Models: COMPLEX → Leader/planner/architect = **Opus**, MEDIUM and below → Sonnet+thinking. Implementation = Sonnet, tests = Haiku.
+- Models: All team agents = **Sonnet** (subagent_type: "sonnet-agent"). Sub-agents (debugger/build-fixer/testers) = Haiku only. No Opus.
 - File isolation: own domain only. Shared → Leader. MECE: 1 agent per file. Violation → revert.
 - Testers: report only, no edits. Peer comms: technical → direct, decisions → Leader.
 - Codex: pre-merge ×1. Failure → skip.
