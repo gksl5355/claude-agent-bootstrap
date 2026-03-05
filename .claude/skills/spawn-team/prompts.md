@@ -32,7 +32,7 @@ Rules: ≤2 sub-agents per agent | Haiku only | sub-agents CANNOT spawn further 
 Technical details → SendMessage directly to relevant agent. Leader gets completion/issues only. Shared files → via Leader.
 
 ## Leader Report Format
-DONE: `status: DONE | files: {path-list} | summary: {one-line change description}`
+DONE: `status: DONE | files: {path-list} | summary: {one-line change description} | accepts: passed`
 FAIL/BLOCKED: above + `ERR: test:{name} expected:{x} actual:{y} location:{file:line} repro:{cmd}`
 ```
 

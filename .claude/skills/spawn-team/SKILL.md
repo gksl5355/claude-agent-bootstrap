@@ -19,7 +19,7 @@ allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(
 
 1. **Pre-scan** (auto): package.json/requirements.txt/go.mod → stack, src/app/lib → scale, .git → worktree availability
 2. **Conditional questions** (only if needed): non-standard structure → ask for domain spec / ambiguous request → type selection / clear → straight to Step 1
-3. **Output**: `task_type: FEATURE|BUG_FIX|REFACTOR|RESEARCH|AUTO`, `clarity: HIGH|MEDIUM|LOW`, `original_request: {verbatim user request}`
+3. **Output**: `clarity: HIGH|MEDIUM|LOW`, `original_request: {verbatim user request}`
 
 ## Step 1: Project Analysis
 
@@ -183,7 +183,7 @@ Analyze change (non-breaking → approve, breaking → consider Debate) → paus
 Team ready.
 Agents: {name}({model}) — {scope} ...
 Codex: enabled/disabled | Worktree: isolated/shared
-Complexity: {X} | Scope: IN {n} / OUT {n} | Plan: Wave {n} / none
+Complexity: {X} | Scope: IN {n} / OUT {n} | Plan: {n} waves / none
 ```
 SIMPLE → auto-start with original request. No further input needed.
 MEDIUM/COMPLEX → "Starting: '{original_request}'. Any additions before I begin?"
@@ -191,7 +191,7 @@ MEDIUM/COMPLEX → "Starting: '{original_request}'. Any additions before I begin
 ## Step 7: Execution & Feedback Loop
 
 ### 7-1. Task Distribution
-SendMessage to assign using Task format from Step 3-2 (COMPLEX) or plain description (SIMPLE/MEDIUM). Independent = parallel, dependent = blockedBy. (COMPLEX) Follow Wave order — Leader sends "WAVE {N} COMPLETE" to gate next Wave start.
+SendMessage to assign. COMPLEX: use Task format (Task/Accepts/BlockedBy) from Step 3-2. MEDIUM: include brief Accepts criterion in description. SIMPLE: plain description. Independent = parallel, dependent = blockedBy. (COMPLEX) Follow Wave order — Leader sends "WAVE {N} COMPLETE" to gate next Wave start.
 
 ### 7-1-b. Mid-Run Summary (context management)
 
@@ -227,7 +227,7 @@ Agent self-spawns build-fixer sub-agent (haiku, depth-1, scoped to domain). Fail
 
 ### 7-4. Shutdown
 Conditions (AND): TaskList all completed + unit-tester PASS + scenario-tester PASS + Codex done + (COMPLEX) all Wave completion criteria from Step 3-3 satisfied.
-→ shutdown_request to all → TeamDelete. Quota threshold → immediate alert → scale down / terminate.
+→ shutdown_request to all → TeamDelete.
 
 ## Debate Mode
 
@@ -246,5 +246,5 @@ Entry: hard (irreversible=true / impact=3) or soft (risk 6+). Sum 6-7 → Leader
 - Tokens: Explore first, no sequential expensive-model reads. No repeat file reads. Extract essentials from tool output.
 - Worktree: 3+ agents → **must use isolation: "worktree"** (if git available; else cap ≤2 agents, shared). Sequential merge. No parallel merges. No direct work on main.
 - Leader reads: DONE items → git diff --numstat check only. High-risk (public API / auth / payment / 100+ LOC / post-FAIL fix) → inspect hunks directly.
-- Planning: SIMPLE = no plan, COMPLEX only = interview. Scope locked after Step 2.5 → change triggers warning.
+- Planning: SIMPLE = no plan, MEDIUM = scope only (Step 2.5), COMPLEX = interview + Wave. Scope locked after Step 2.5 → change triggers warning.
 - Sub-agents: depth-1 only (no nesting). ≤2 per agent. Haiku only. debugger=read-only, build-fixer=scoped edits. Sub-agents do NOT count toward the 5-agent cap.
