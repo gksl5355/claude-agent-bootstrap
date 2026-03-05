@@ -2,7 +2,7 @@
 
 [🇺🇸 English](README.md)
 
-![Version](https://img.shields.io/badge/version-0.4.0-blue)
+![Version](https://img.shields.io/badge/version-0.5.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 [![GitHub Release](https://img.shields.io/github/v/release/gksl5355/claude-agent-bootstrap)](https://github.com/gksl5355/claude-agent-bootstrap/releases)
@@ -164,7 +164,7 @@ Step 7   실행 루프       구현 → 테스트 → 피드백 → 머지 → C
 |--------|------|------|------|
 | SIMPLE | 4–6 | 0→1→2→2B→4→5→6→7 | ~1분 |
 | MEDIUM | 7–9 | + Step 2.5 (범위 확인) | ~3분 |
-| COMPLEX | 10–11 | + Step 2.5 + 3 (계획 수립) | ~10분 |
+| COMPLEX | 10+ | + Step 2.5 + 3 (계획 수립) | ~10분 |
 
 ### 모델 라우팅
 

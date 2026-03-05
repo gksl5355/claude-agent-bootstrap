@@ -13,17 +13,13 @@ argument-hint: "[project path]"
 allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(wc *), Bash(sg *), Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, TeamDelete, SendMessage, AskUserQuestion
 ---
 
-# Spawn Team
-
-Analyze a project to dynamically compose and operate optimized Claude Code Agent Teams based on domain structure.
-
 ## Step 0: Intent Classification & Clarification
 
 **Fast — most requests pass without extra questions.**
 
 1. **Pre-scan** (auto): package.json/requirements.txt/go.mod → stack, src/app/lib → scale, .git → worktree availability
 2. **Conditional questions** (only if needed): non-standard structure → ask for domain spec / ambiguous request → type selection / clear → straight to Step 1
-3. **Output**: `task_type: FEATURE|BUG_FIX|REFACTOR|RESEARCH|AUTO`, `clarity: HIGH|MEDIUM|LOW`
+3. **Output**: `task_type: FEATURE|BUG_FIX|REFACTOR|RESEARCH|AUTO`, `clarity: HIGH|MEDIUM|LOW`, `original_request: {verbatim user request}`
 
 ## Step 1: Project Analysis
 
@@ -50,12 +46,7 @@ Detection failure: AskUserQuestion for manual spec, or assign 1 fullstack agent.
 
 Scale: small (1-3 files) = merge candidate, medium (4-9) = 1 independent agent, large (10+) = 1 agent (suggest split).
 
-**Final output** — each file/directory belongs to exactly 1 entry; shared files owned by Leader:
-```
-products-be: src/products/**
-orders-be:   src/orders/**
-shared(Leader): src/types/**, src/utils/**
-```
+**Final output** — each file/directory belongs to exactly 1 entry; shared files owned by Leader.
 
 ## Step 2: Team Composition Proposal (Dynamic)
 
@@ -67,9 +58,7 @@ shared(Leader): src/types/**, src/utils/**
 | Medium (3-4) | domain be/fe(sonnet) per domain + unit-tester(haiku) | isolated |
 | Large (5 cap) | planner(sonnet) + domain(sonnet, merge to ≤2) + tester(haiku) ×2 | isolated |
 
-> Models above are **scale defaults**. Complexity-based promotion (below) overrides them — e.g. COMPLEX promotes planner to Opus.
-
-Too many domains → merge small ones. Worktree: 3+ agents → isolated, ≤2 → shared.
+Too many domains → merge by similarity/dependency until ≤5 slots. If all domains are medium+, split largest. Worktree: 3+ agents → isolated, ≤2 → shared.
 
 ### Model Selection (complexity-linked)
 
@@ -83,9 +72,7 @@ Too many domains → merge small ones. Worktree: 3+ agents → isolated, ≤2 �
 **Complexity-based model promotion:**
 - **SIMPLE**: Leader=Sonnet, all agents Sonnet/Haiku. No Opus (5x cost).
 - **MEDIUM**: Leader=Sonnet+thinking, planner=Sonnet. Opus unnecessary.
-- **COMPLEX**: Leader=**Opus**, planner=**Opus**, architect-agent=**Opus**. Domain agents stay Sonnet.
-  - Opus rationale: Wave decomposition + 5-agent coordination + cross-domain dependency judgment requires deep reasoning.
-  - Domain agents (implementation) are fine with Sonnet — Opus is for orchestration only.
+- **COMPLEX**: Leader=**Opus**, planner=**Opus**, architect-agent=**Opus**. Domain agents stay Sonnet (implementation only).
 
 ## Step 2B: Complexity Scoring (Auto)
 
@@ -97,13 +84,14 @@ Too many domains → merge small ones. Worktree: 3+ agents → isolated, ≤2 �
 | Structure | [A]=1 | [B]=2 | [C]=2 |
 
 ```
-4-6  → SIMPLE:  straight to Step 4
+4-6  → SIMPLE:  straight to Step 4 (no override question, no Codex question)
 7-9  → MEDIUM:  Step 2.5 → Step 4
-10-11 → COMPLEX: Step 2.5 → Step 3 → Step 4
-Auto COMPLEX: explicit "plan this"/"계획해줘"/plan request, structure [C], clarity=LOW
+10+  → COMPLEX: Step 2.5 → Step 3 → Step 4
+Auto COMPLEX: explicit "plan this"/"계획해줘"/plan request, structure [C]
+clarity=LOW → AskUserQuestion ×1 to clarify intent → re-run complexity scoring with refined request → continue normal flow.
 ```
 
-User override: "Complexity: {X}. 1) Proceed 2) Plan 3) Adjust scope"
+User override (MEDIUM/COMPLEX only): "Complexity: {X}. 1) Proceed 2) Plan 3) Adjust scope"
 
 ## Step 2.5: Scope Confirmation (MEDIUM/COMPLEX only)
 
@@ -112,8 +100,6 @@ Auto-generated from Step 1 → AskUserQuestion ×1:
 - After confirmation → **scope locked**. Change attempts → warning + re-confirmation required.
 
 ## Step 3: Planning (COMPLEX only)
-
-**SIMPLE/MEDIUM skip this entirely.**
 
 ### 3-1. Structured Interview (AskUserQuestion, 3-5 questions)
 Q1 core objective (1-2 sentences) / Q2 success criteria ×3 (measurable) / Q3 constraints / Q4 risks / Q5 ordering preference
@@ -126,20 +112,18 @@ Wave 3 (sequential): Integration — cross-domain connections, shared files
 Wave 4 (parallel): Verification — unit + scenario tests
 Wave 5: Final — Codex review + merge
 ```
-Each Wave: parallel tasks, dependencies, assigned agent, completion criteria.
+Each Wave: parallel tasks, dependencies, assigned agent, completion criteria. Distribute Q2 success criteria across domains.
 
-### 3-3. Per-Domain Completion Criteria
-Distribute Q2 across domains (specific, measurable).
-
-### 3-4. Validation + Confirmation
+### 3-3. Validation + Confirmation
 Auto-check: measurable? circular deps? ≤10 tasks per agent? risks reflected?
 Violation → AskUserQuestion. Final approval → Step 4.
 
 ## Step 4: User Confirmation
 
-AskUserQuestion ×2:
-1. **Team composition** — per-agent scope (COMPLEX: includes Wave summary). Options: as recommended / adjust
-2. **Codex activation** — enable pre-merge final review?
+**SIMPLE**: AskUserQuestion ×1 — team composition only. Codex auto-disabled. On confirmation → spawn immediately, start original request automatically.
+**MEDIUM/COMPLEX**: AskUserQuestion ×2:
+1. **Team composition** — per-agent scope (COMPLEX: includes Wave summary). Options: as recommended / adjust (specify changes in free text)
+2. **Codex activation** — enable pre-merge final review? (adds one AI code review pass before merge)
 
 ## Step 5: Spawn Team
 
@@ -148,68 +132,26 @@ AskUserQuestion ×2:
 Each agent: `subagent_type: "general-purpose"`, `team_name`, `name: "{domain}-{role}"`, `model`, `run_in_background: true`
 
 **⚠ Worktree Rules (verify before spawning):**
-1. 3+ agents → **must** set `isolation: "worktree"`. Never omit.
+1. 3+ agents → **must** set `isolation: "worktree"` (requires git). Never omit.
 2. ≤2 agents → shared (omit isolation).
-3. Pre-spawn: run `git rev-parse --is-inside-work-tree` → failure → fallback to shared + notify user.
+3. Pre-spawn: run `git rev-parse --is-inside-work-tree` → failure → fallback to shared (cap: ≤2 agents, keep highest-priority domains) + notify user.
 4. When using worktree, apply to all agents uniformly (no partial worktree).
 
 Partial spawn failure: TeamDelete rollback → notify → suggest retry.
 
 ### 5-3. Agent Prompts
 
-**[Common Header] — inserted into every agent:**
-```
-Project: {project-path}
-Team members: {team-members}
-
-## Assigned Scope (MECE)
-Owns: {file-list}
-Forbidden: no edits outside scope (read OK)
-
-⚠ Boundaries: shared file edits → Leader approval | out-of-scope edits → revert + report | before starting, send "Scope confirmed: {list}"
-
-## Exploration (token efficiency)
-{≤5 files: direct Read+Grep | 6-15: Explore→Grep/sg→Read | 16+: Explore→sg→Grep→Read only needed files}
-**Check size before Read**: `wc -l {file}` → 500+ lines → must use offset+limit on Read. No full-file reads.
-
-## Runtime Token Conservation
-- No repeat reads of the same file — retain in memory and reuse.
-- If tool output is excessively long, extract only the essentials (no full paste).
-- When debugging errors, quote only relevant lines, not full stack traces.
-- Don't mix exploration (Explore/Grep) and implementation in one turn — finish exploring, then implement.
-- **Stop exploring after reading 15+ files** → summarize findings, start implementing. If stuck, report to Leader.
-
-## Peer Communication
-Technical details → SendMessage directly to relevant agent. Leader gets completion/issues only. Shared files → via Leader.
-
-## Leader Report Format
-DONE: `status: DONE | files: {path-list} | summary: {one-line change description}`
-FAIL/BLOCKED: above + `ERR: test:{name} expected:{x} actual:{y} location:{file:line} repro:{cmd}`
-```
-
-**[Role-specific — appended after common header]:**
-
-| Role | Prompt |
-|------|--------|
-| {domain}-be | "You are {domain} BE developer ({name}). Edit only your scope. On completion → TaskUpdate + report. After 2-3 attempts, request Leader help. On tester report → fix → re-report." |
-| {domain}-fe | Same as above + "Use Tailwind CSS (if present in project)." |
-| unit-tester | "Test framework: {fw}. On Leader instruction → write & run unit tests. Mock externals. PASS → report. FAIL → report to Leader + relevant agent simultaneously (test name / expected vs actual / file:line / repro steps). **No code modifications.**" |
-| scenario-tester | "Start on Leader instruction after implementation complete. Verify user scenarios step by step. FAIL → report step / expected / actual / repro steps. **No code modifications.**" |
-| fullstack | "Own entire BE+FE scope. On completion → TaskUpdate + report. After 2-3 attempts, request Leader help." |
-
-(COMPLEX) Append Wave info: "Wave {N} assigned: {tasks}. Proceed to next Wave on completion."
+Read `.claude/skills/spawn-team/prompts.md` → inject Common Header + role-specific prompt for each agent.
+(COMPLEX) Append Wave info from prompts.md.
 
 ## Domain Boundaries & Worktree Merge Protocol
-
-### Plan Mode Approval Gate (3+ agents, high dependencies)
-Spawn with `mode: "plan"` → submit plan → Leader checks: edits within scope? no unauthorized shared changes? no API changes? → approve / reject + feedback.
 
 ### Worktree Merge (sequential — no parallel merges)
 ```
 Pre-merge: git diff --numstat main → 100+ LOC changed files → inspect hunks directly. git diff --name-only main | grep -vE "{pattern}" → out-of-scope → revert
 Order: 1. shared (Leader direct) → 2. independent domains → 3. high-dependency domains → 4. tests
 Post-merge: build check → FAIL → build-fixer
-Conflicts: auto → Leader resolves / manual → AskUserQuestion
+Conflicts: same file → manual (AskUserQuestion) / different files → auto (Leader resolves)
 ```
 
 ### Shared Type/Schema Changes
@@ -222,13 +164,14 @@ Team ready.
 Agents: {name}({model}) — {scope} ...
 Codex: enabled/disabled | Worktree: isolated/shared
 Complexity: {X} | Scope: IN {n} / OUT {n} | Plan: Wave {n} / none
-Give your instructions.
 ```
+SIMPLE → auto-start with original request. No further input needed.
+MEDIUM/COMPLEX → "Starting: '{original_request}'. Any additions before I begin?"
 
 ## Step 7: Execution & Feedback Loop
 
 ### 7-1. Task Distribution
-SendMessage to assign. Independent = parallel, dependent = blockedBy. (COMPLEX) Follow Wave order.
+SendMessage to assign. Independent = parallel, dependent = blockedBy. (COMPLEX) Follow Wave order — Leader sends "WAVE {N} COMPLETE" to gate next Wave start.
 
 ### 7-1-b. Mid-Run Summary (context management)
 
@@ -236,26 +179,22 @@ SendMessage to assign. Independent = parallel, dependent = blockedBy. (COMPLEX) 
 **MEDIUM**: once after all agents complete, before merge.
 **SIMPLE**: skip (fast completion, no accumulation).
 
-```
-> /tmp/summary-{wave|final}.md (cap: 1500 chars)
-Decisions: {decisions made this phase}
-Open: {unresolved issues}
-Verification: PASS {n} / FAIL {n}
-Next: {next phase objective}
-```
-Prefer this file over prior conversation afterward. Self-check: [ ] ≤1500 chars [ ] all agent statuses included [ ] no missing open items
+Write `/tmp/summary-{wave|final}.md` (cap: 1500 chars): decisions / open issues / verification PASS·FAIL counts / next objective. Prefer this file over prior conversation afterward.
+
+### 7-1-c. Progress Updates (mandatory)
+Leader reports to user at: each agent completion ("✅ {agent} done — {n}/{total} tasks"), Wave transition (COMPLEX), any FAIL escalation.
 
 ### 7-2. Implementation → Test Loop
 ```
 Agent done → unit-tester verifies
   PASS → next phase
   FAIL → report to Leader + agent → fix → re-verify
-    2× FAIL → spawn debugger (haiku, analysis only, no edits) → relay findings → fix
+    2× FAIL → agent self-spawns debugger sub-agent (haiku, depth-1, no edits) → relay findings → fix
     post-debugger FAIL → [circuit breaker] AskUserQuestion: "1) Leader intervenes 2) Skip 3) Abort"
 ```
 
 ### 7-2-b. Build Failure
-Spawn build-fixer (haiku, scoped to affected domain). Failure → Leader / escalation.
+Agent self-spawns build-fixer sub-agent (haiku, depth-1, scoped to domain). Failure → Leader / escalation.
 
 ### 7-2-c. Structure [C] — architect-agent (once, before coding)
 **Opus** (legacy structure analysis requires deep reasoning), design directory structure → Leader review → user approval → refactor → convert to [A]. Failure → fallback to [B].
@@ -285,6 +224,7 @@ Entry: hard (irreversible=true / impact=3) or soft (risk 6+). Sum 6-7 → Leader
 - Testers: report only, no edits. Peer comms: technical → direct, decisions → Leader.
 - Codex: pre-merge ×1. Failure → skip.
 - Tokens: Explore first, no sequential expensive-model reads. No repeat file reads. Extract essentials from tool output.
-- Worktree: 3+ agents → **must use isolation: "worktree"**. Sequential merge. No parallel merges. No direct work on main.
+- Worktree: 3+ agents → **must use isolation: "worktree"** (if git available; else cap ≤2 agents, shared). Sequential merge. No parallel merges. No direct work on main.
 - Leader reads: DONE items → git diff --numstat check only. High-risk (public API / auth / payment / 100+ LOC / post-FAIL fix) → inspect hunks directly.
 - Planning: SIMPLE = no plan, COMPLEX only = interview. Scope locked after Step 2.5 → change triggers warning.
+- Sub-agents: depth-1 only (no nesting). ≤2 per agent. Haiku only. debugger=read-only, build-fixer=scoped edits. Sub-agents do NOT count toward the 5-agent cap.

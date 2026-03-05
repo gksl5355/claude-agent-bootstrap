@@ -2,7 +2,7 @@
 
 [🇰🇷 한국어](README.ko.md)
 
-![Version](https://img.shields.io/badge/version-0.4.0-blue)
+![Version](https://img.shields.io/badge/version-0.5.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 [![GitHub Release](https://img.shields.io/github/v/release/gksl5355/claude-agent-bootstrap)](https://github.com/gksl5355/claude-agent-bootstrap/releases)
@@ -164,7 +164,7 @@ Step 7   Execution loop            Implement → Test → Feedback → Merge →
 |------------|-------|------|---------|
 | SIMPLE | 4–6 | 0→1→2→2B→4→5→6→7 | ~1 min |
 | MEDIUM | 7–9 | + Step 2.5 (scope) | ~3 min |
-| COMPLEX | 10–11 | + Step 2.5 + 3 (planning) | ~10 min |
+| COMPLEX | 10+ | + Step 2.5 + 3 (planning) | ~10 min |
 
 ### Model Routing
 
