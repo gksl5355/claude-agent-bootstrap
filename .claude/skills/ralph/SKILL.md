@@ -41,7 +41,7 @@ If no team → run /spawn-team first.
 while (passes:false exists):
   pick highest-priority incomplete story → Step 3 → Step 4
   pass → passes:true → next
-  fail → spawn-team §7-2 feedback loop (2 retries → debugger → circuit breaker)
+  fail → spawn-team §8-3 feedback loop (2 retries → debugger → circuit breaker)
 ```
 
 ## Step 3: Delegate Implementation
@@ -57,7 +57,7 @@ Delegate independent stories in parallel. Dependencies → blockedBy.
 ## Step 4: Verification (fresh evidence required)
 
 unit-tester: report actual execution results for each criterion. "probably works" is not acceptable.
-Pass → prd.json `passes:true`. Fail → apply spawn-team §7-2.
+Pass → prd.json `passes:true`. Fail → apply spawn-team §8-3.
 
 ## Step 5: PRD Completion Check
 

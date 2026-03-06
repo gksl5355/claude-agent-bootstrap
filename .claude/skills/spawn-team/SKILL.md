@@ -6,6 +6,9 @@ triggers:
   - "create a team"
   - "set up a team"
   - "start team agents"
+  - "팀 구성"
+  - "팀 스폰"
+  - "팀 만들어"
 argument-hint: "[project path]"
 allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(wc *), Bash(sg *), Bash(echo *), Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, TeamDelete, SendMessage, AskUserQuestion
 ---
@@ -94,7 +97,7 @@ Wave 1 (parallel): Foundation — types, schemas, shared interfaces
 Wave 2 (parallel): Core — domain logic per agent
 Wave 3 (sequential): Integration — cross-domain, shared files
 Wave N (parallel): Verification — tests
-Wave Final: Codex review + merge
+Wave Final: merge (+ Codex review if requested)
 ```
 
 **Task format (per task):**
@@ -127,7 +130,7 @@ Rules: ≤10 tasks per agent. Accepts missing → task not issued. Scope ≤200 
 |-------|---------|
 | **Sonnet** | Planning, complex coding, multi-file coordination, architecture decisions |
 | **Haiku** | Simple test execution, linting, format checks, repetitive verification, sub-agents |
-| **Codex (CLI)** | Offload simple code generation from within Sonnet agents via `codex exec -s full-auto` to preserve Claude quota |
+| **Codex (CLI)** | Purely mechanical, zero-context code generation (see Codex Offloading below) |
 | **Codex xhigh** | Debate + pre-merge final review only (read-only) |
 
 **No Opus under any circumstances.**
@@ -145,17 +148,14 @@ Rules: ≤10 tasks per agent. Accepts missing → task not issued. Scope ≤200 
 
 Mix freely. Only constraints: 5-agent cap, MECE scope ownership.
 
-### Codex Offloading (Claude quota preservation)
+### Codex Offloading (use sparingly)
 
-Sonnet agents call `codex exec -s full-auto "{instruction}"` for:
-- Boilerplate, CRUD scaffolding, single-file simple implementations
-- Type/interface definitions, config files, repetitive pattern code
-- Unit test stubs (validate before applying)
+Delegate to Codex only when ALL hold: (1) zero codebase context required, (2) purely mechanical output, (3) result verifiable at a glance.
 
-Claude writes directly: complex logic, multi-file coordination, context-dependent changes, architecture decisions.
+Good: standalone utility function with fixed signature, standard config file (.eslintrc, .gitignore), empty test file skeleton.
+Bad: CRUD touching existing models, type defs referencing existing types, anything reading existing files first.
 
-If Codex can do it equally well → delegate. Codex failure → Claude fallback, no retry.
-Target: 30-50% of code generation offloaded → extends Claude quota lifespan.
+Claude writes directly for everything else. Codex failure → write directly, no retry.
 
 ### Worktree
 
@@ -169,9 +169,7 @@ Target: 30-50% of code generation offloaded → extends Claude quota lifespan.
 
 **SIMPLE**: AskUserQuestion ×1 — team composition only. On confirm → spawn + auto-start original request.
 
-**MEDIUM/COMPLEX**: AskUserQuestion ×2:
-1. Team composition (COMPLEX: include Wave plan + top risk from Gap+Risk Review)
-2. Enable Codex xhigh pre-merge review? (one read-only review pass before merge)
+**MEDIUM/COMPLEX**: AskUserQuestion ×1 — team composition (COMPLEX: include Wave plan + top risk from Gap+Risk Review). On confirm → spawn.
 
 ---
 
@@ -193,7 +191,7 @@ echo "claude-sonnet-4-6" > /tmp/claude-team-model
 echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model
 ```
 Signal file is consumed after one spawn. Default (no file) = Sonnet.
-Requires: tmux session + model wrapper at `~/.local/bin/claude`. Without tmux, agents run in-process and bypass the wrapper entirely — all agents default to Opus.
+Requires: tmux session + model wrapper installed via `install.sh`. Without tmux, agents run in-process and bypass the wrapper — all agents default to Opus.
 
 Partial spawn failure → TeamDelete rollback → notify → suggest retry.
 
@@ -250,10 +248,10 @@ Shared type/schema change: non-breaking → approve / breaking → consider Deba
 
 1. scenario-tester → FAIL → fix → re-verify
 2. Worktree merge (per 8-4)
-3. Codex xhigh review (if enabled, ×1). Failure → skip.
+3. AskUserQuestion: "Run Codex xhigh review before finalizing?" → yes: run ×1 (read-only). Failure → skip.
 4. Completion report
 
-**Shutdown conditions (AND):** all tasks completed + unit-tester PASS + scenario-tester PASS + Codex done + (COMPLEX) all Wave criteria satisfied → shutdown_request to all → TeamDelete.
+**Shutdown conditions (AND):** all tasks completed + unit-tester PASS + scenario-tester PASS + (COMPLEX) all Wave criteria satisfied → shutdown_request to all → TeamDelete.
 
 ---
 

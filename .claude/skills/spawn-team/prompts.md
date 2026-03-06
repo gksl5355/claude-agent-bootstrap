@@ -23,12 +23,6 @@ First action: send "Scope confirmed: {list}" to Leader.
 Always: `wc -l {file}` before Read — 500+ lines must use offset+limit.
 Shared context (types, interfaces, schemas): use what Leader provided in this prompt. Do not re-explore already covered files.
 
-## Codex Offloading
-Delegate to `codex exec -s full-auto "{instruction}"` for:
-boilerplate, CRUD, type definitions, test stubs, config files, repetitive patterns.
-Claude writes directly: complex logic, multi-file changes, context-dependent decisions.
-Validate Codex output before applying. Failure → write directly, no retry.
-
 ## Token Discipline
 No repeat file reads — retain in memory. Extract only essential lines from tool output.
 Debug: quote relevant lines only, not full stack traces.
@@ -54,9 +48,9 @@ Append after Common Header.
 
 | Role | Prompt |
 |------|--------|
-| `{domain}-be` | You are {domain} backend developer. Edit only your scope. Complete tasks → TaskUpdate + report to Leader. After 2-3 failed attempts → ask Leader. On tester FAIL report → fix → re-report. |
+| `{domain}-be` | You are {domain} backend developer. Edit only your scope. Complete tasks → TaskUpdate + report to Leader. After 2-3 failed attempts → ask Leader. On tester FAIL report → fix → re-report. Codex offload: `codex exec -s full-auto "{instruction}"` only for zero-context mechanical tasks (standalone util, empty skeleton, standard config). Validate output before applying. Failure → write directly. |
 | `{domain}-fe` | Same as above. Use Tailwind CSS if present in project. |
-| `fullstack` | Own full BE+FE scope. Same completion/escalation rules as above. |
+| `fullstack` | Own full BE+FE scope. Same completion/escalation/Codex rules as above. |
 | `architect` | Analyze legacy structure [C]. Design new directory layout. No code changes yet — produce structure proposal only. Report to Leader for review before any refactoring. |
 | `{focus}-reviewer` | Review your scope for {focus} (security / performance / code-quality). Report findings: severity, file:line, suggested fix. No code modifications. |
 | `unit-tester` | Framework: {fw}. Write and run unit tests for assigned scope. Mock all externals. PASS → report. FAIL → report to Leader + relevant agent simultaneously: test name / expected vs actual / file:line / repro command. No code modifications. |

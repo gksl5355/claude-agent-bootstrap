@@ -2,7 +2,7 @@
 
 [🇺🇸 English](README.md)
 
-![Version](https://img.shields.io/badge/version-0.5.1-blue)
+![Version](https://img.shields.io/badge/version-0.5.2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 [![GitHub Release](https://img.shields.io/github/v/release/gksl5355/claude-agent-bootstrap)](https://github.com/gksl5355/claude-agent-bootstrap/releases)
@@ -46,7 +46,7 @@ claude
 
 ```bash
 mkdir -p ~/.claude/skills
-for skill in spawn-team debate ralph hud configure-notifications; do
+for skill in spawn-team debate ralph; do
   ln -sf "$(pwd)/.claude/skills/$skill" ~/.claude/skills/$skill
 done
 ```
@@ -64,8 +64,6 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 | `spawn-team` | O | 없음 (핵심) |
 | `debate` | O | 없음 |
 | `ralph` | X | spawn-team 필요 |
-| `hud` | O | 없음 |
-| `configure-notifications` | O | 없음 |
 
 </details>
 
@@ -105,7 +103,7 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 **제거:**
 
 ```bash
-rm ~/.claude/skills/{spawn-team,debate,ralph,hud,configure-notifications}
+rm ~/.claude/skills/{spawn-team,debate,ralph}
 ```
 
 ---
@@ -148,8 +146,6 @@ Claude Code Agent Teams는 강력하지만, 직접 구성하려면 결정할 게
 | **Debate** | `/debate` or 위험도 6+ | Codex xhigh 적대적 아키텍처 검토 (2라운드 상한) |
 | **Codex 리뷰** | 머지 후 | xhigh read-only 교차 검토 |
 | **Ralph** | `/ralph` | PRD 기반 완료 보장 — 모든 스토리 PASS까지 |
-| **HUD** | `/hud` | 상태 표시줄에 팀 진행률 실시간 표시 |
-| **알림** | `/configure-notifications` | Telegram / Discord / Slack 이벤트 알림 |
 
 ---
 
@@ -158,25 +154,24 @@ Claude Code Agent Teams는 강력하지만, 직접 구성하려면 결정할 게
 ### 전체 플로우
 
 ```
-Step 0   의도 분류       모호하면 1-2개 질문. 대부분 자동 통과.
+Step 0   의도 스캔       스택/규모 자동 감지. 모호할 때만 질문.
 Step 1   프로젝트 분석    기술 스택 + 도메인 감지 + 구조 타입 [A/B/C]
-Step 2   팀 구성 제안     에이전트 수 + 모델 + 워크트리 모드
-Step 2B  복잡도 판단     자동 점수 → SIMPLE / MEDIUM / COMPLEX
-Step 2.5 범위 확인       IN/OUT/DEFER 사용자 확인 (MEDIUM+)
-Step 3   계획 수립       인터뷰 + Wave 분해 + 완료 기준 (COMPLEX만)
-Step 4   사용자 확인     팀 + 계획 최종 승인
-Step 5   팀 스폰        에이전트 생성 + MECE 프롬프트
-Step 6   작업 지시 대기   "준비 완료"
-Step 7   실행 루프       구현 → 테스트 → 피드백 → 머지 → Codex 리뷰
+Step 2   복잡도 판단     자동 점수 → SIMPLE / MEDIUM / COMPLEX
+Step 3   범위 확인       IN/OUT/DEFER 사용자 확인 (MEDIUM+ only)
+Step 4   계획 수립       인터뷰 + Wave 분해 + 완료 기준 (COMPLEX만)
+Step 5   팀 구성 제안     에이전트 수 + 모델 + 워크트리 모드
+Step 6   사용자 확인     팀 + 계획 최종 승인
+Step 7   팀 스폰        에이전트 생성 + MECE 프롬프트
+Step 8   실행 루프       구현 → 테스트 → 피드백 → 머지 → Codex 리뷰
 ```
 
 ### 복잡도별 경로
 
 | 복잡도 | 점수 | 경로 | 소요 |
 |--------|------|------|------|
-| SIMPLE | 4–6 | 0→1→2→2B→4→5→6→7 | ~1분 |
-| MEDIUM | 7–9 | + Step 2.5 (범위 확인) | ~3분 |
-| COMPLEX | 10+ | + Step 2.5 + 3 (계획 수립) | ~10분 |
+| SIMPLE | 4–6 | 0→1→2→5→6→7→8 | ~1분 |
+| MEDIUM | 7–9 | + Step 3 (범위 확인) | ~3분 |
+| COMPLEX | 10+ | + Step 3 + 4 (계획 수립) | ~10분 |
 
 ### 모델 라우팅
 
@@ -186,7 +181,7 @@ Step 7   실행 루프       구현 → 테스트 → 피드백 → 머지 → C
 | 테스트, 디버그, 빌드 수정 (서브에이전트) | Haiku | 경량, 자기 스폰 |
 | 최종 리뷰, 설계 비판 | Codex xhigh | 독립적 관점 |
 
-> **작동 방식:** Claude Code는 팀 에이전트 스폰 시 `claude-opus-4-6`을 하드코딩하며 설정으로 변경 불가. `./install.sh`이 versioned 바이너리 경로에 셸 래퍼를 설치해 스폰을 인터셉트하고, 실제 바이너리 실행 전에 Sonnet/Haiku로 교체한다. Anthropic이 에이전트 모델 설정을 공식 지원하면 래퍼는 불필요해진다.
+> **작동 방식:** Claude Code는 팀 에이전트 스폰 시 모델 플래그를 전달한다. `./install.sh`이 versioned 바이너리 경로에 셸 래퍼를 설치해 스폰을 인터셉트하고, 실제 바이너리 실행 전에 Sonnet/Haiku로 교체한다. Anthropic이 에이전트 모델 설정을 공식 지원하면 래퍼는 불필요해진다.
 
 ### 에이전트 구성
 
@@ -205,8 +200,6 @@ Step 7   실행 루프       구현 → 테스트 → 피드백 → 머지 → C
 | [`/spawn-team`](.claude/skills/spawn-team/SKILL.md) | "팀 구성", "spawn team" | 핵심 오케스트레이터 |
 | [`/debate`](.claude/skills/debate/SKILL.md) | "debate", "아키텍처 토론" | Codex xhigh 적대적 검토 |
 | [`/ralph`](.claude/skills/ralph/SKILL.md) | "끝날 때까지", "ralph" | PRD 완료 보장 |
-| [`/hud`](.claude/skills/hud/SKILL.md) | "hud setup" | 상태 표시줄 |
-| [`/configure-notifications`](.claude/skills/configure-notifications/SKILL.md) | "알림 설정" | Telegram / Discord / Slack |
 
 ---
 
@@ -218,7 +211,7 @@ Step 7   실행 루프       구현 → 테스트 → 피드백 → 머지 → C
 | Permission denied | `~/.claude/settings.json`에 `"Skill(spawn-team)"` 허용 추가 |
 | Agent Teams 안 됨 | Claude Max 확인 + `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` 설정 |
 | 에이전트가 Opus로 뜸 | tmux 안에서 Claude Code 실행 필수. `tmux new-session -s dev && claude` |
-| 모델 wrapper 미작동 | `cat /tmp/claude-wrapper.log` — `MODEL SWAP: claude-opus-4-6 → claude-sonnet-4-6` 있어야 함. 없으면 `./install.sh` 재실행 |
+| 모델 wrapper 미작동 | `cat /tmp/claude-wrapper.log` — `MODEL SWAP:` 라인이 있어야 함. 없으면 `./install.sh` 재실행 |
 | Claude Code 업데이트됨 | `./install.sh` 재실행 — 새 versioned 바이너리 경로에 래퍼 재설치 필요 |
 | Codex exec 실패 | 자동 스킵됨. 설치: `npm install -g @openai/codex` |
 | 에이전트 idle 상태 | 정상. 메시지 받을 때만 쿼터 소모. 비용 없음. |
@@ -231,7 +224,7 @@ Step 7   실행 루프       구현 → 테스트 → 피드백 → 머지 → C
 
 | Project | Adopted | Their Strength |
 |---------|---------|----------------|
-| [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) by @Yeachan-Heo | Magic Keyword 의도 탐지, ralph/HUD/notification 원본 | 의도 탐지 & 자연어 인터페이스 |
+| [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) by @Yeachan-Heo | Magic Keyword 의도 탐지, ralph 지속 루프 | 의도 탐지 & 자연어 인터페이스 |
 | [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode) by @code-yeongyu | Planning Triad (Metis→Prometheus→Momus), Wave 분해, 4-criteria 검증 | 계획 분해 & 검증 |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) by Anthropic | Agent Teams API, Plan Mode, worktree isolation | 기반 플랫폼 |
 | [Codex CLI](https://github.com/openai/codex) by OpenAI | ExecPlan 패턴, Decision Log, xhigh reasoning | 독립 리뷰 & 분석 |

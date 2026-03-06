@@ -2,7 +2,7 @@
 
 [🇰🇷 한국어](README.ko.md)
 
-![Version](https://img.shields.io/badge/version-0.5.1-blue)
+![Version](https://img.shields.io/badge/version-0.5.2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 [![GitHub Release](https://img.shields.io/github/v/release/gksl5355/claude-agent-bootstrap)](https://github.com/gksl5355/claude-agent-bootstrap/releases)
@@ -46,7 +46,7 @@ Then in Claude Code:
 
 ```bash
 mkdir -p ~/.claude/skills
-for skill in spawn-team debate ralph hud configure-notifications; do
+for skill in spawn-team debate ralph; do
   ln -sf "$(pwd)/.claude/skills/$skill" ~/.claude/skills/$skill
 done
 ```
@@ -64,8 +64,6 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 | `spawn-team` | Yes | None (core) |
 | `debate` | Yes | None |
 | `ralph` | No | spawn-team required |
-| `hud` | Yes | None |
-| `configure-notifications` | Yes | None |
 
 </details>
 
@@ -105,7 +103,7 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 **Uninstall:**
 
 ```bash
-rm ~/.claude/skills/{spawn-team,debate,ralph,hud,configure-notifications}
+rm ~/.claude/skills/{spawn-team,debate,ralph}
 ```
 
 ---
@@ -148,8 +146,6 @@ Claude Code Agent Teams are powerful, but manual setup requires many decisions �
 | **Debate** | `/debate` or risk 6+ | Codex xhigh adversarial architecture review (2 rounds max) |
 | **Codex review** | Post-merge | xhigh read-only cross-review |
 | **Ralph** | `/ralph` | PRD-driven completion — doesn't stop until all stories pass |
-| **HUD** | `/hud` | Real-time team progress in status bar |
-| **Notifications** | `/configure-notifications` | Telegram / Discord / Slack alerts |
 
 ---
 
@@ -158,25 +154,24 @@ Claude Code Agent Teams are powerful, but manual setup requires many decisions �
 ### Flow
 
 ```
-Step 0   Intent classification     Clarify if ambiguous (1-2 questions). Usually auto-pass.
+Step 0   Intent scan               Auto-detect stack/scale. Ask only if ambiguous.
 Step 1   Project analysis          Tech stack + domain detection + structure type [A/B/C]
-Step 2   Team proposal             Agent count + model + worktree mode
-Step 2B  Complexity scoring        Auto-score → SIMPLE / MEDIUM / COMPLEX
-Step 2.5 Scope confirmation        IN/OUT/DEFER user check (MEDIUM+)
-Step 3   Planning                  Interview + Wave decomposition + criteria (COMPLEX only)
-Step 4   User approval             Final sign-off on team + plan
-Step 5   Spawn                     Create agents + MECE prompts
-Step 6   Standby                   "Ready"
-Step 7   Execution loop            Implement → Test → Feedback → Merge → Codex review
+Step 2   Complexity scoring        Auto-score → SIMPLE / MEDIUM / COMPLEX
+Step 3   Scope confirmation        IN/OUT/DEFER user check (MEDIUM+ only)
+Step 4   Planning                  Interview + Wave decomposition + criteria (COMPLEX only)
+Step 5   Team composition          Agent count + model + worktree mode
+Step 6   User confirmation         Final sign-off on team + plan
+Step 7   Spawn                     Create agents + MECE prompts
+Step 8   Execution loop            Implement → Test → Feedback → Merge → Codex review
 ```
 
 ### Complexity Paths
 
 | Complexity | Score | Path | Approx. |
 |------------|-------|------|---------|
-| SIMPLE | 4–6 | 0→1→2→2B→4→5→6→7 | ~1 min |
-| MEDIUM | 7–9 | + Step 2.5 (scope) | ~3 min |
-| COMPLEX | 10+ | + Step 2.5 + 3 (planning) | ~10 min |
+| SIMPLE | 4–6 | 0→1→2→5→6→7→8 | ~1 min |
+| MEDIUM | 7–9 | + Step 3 (scope) | ~3 min |
+| COMPLEX | 10+ | + Step 3 + 4 (planning) | ~10 min |
 
 ### Model Routing
 
@@ -186,7 +181,7 @@ Step 7   Execution loop            Implement → Test → Feedback → Merge →
 | Tests, debug, build fixes (sub-agents) | Haiku | Lightweight, self-spawned |
 | Final review, design critique | Codex xhigh | Independent perspective |
 
-> **How this works:** Claude Code hardcodes `claude-opus-4-6` for team agent spawns with no config override available. `./install.sh` intercepts spawns at the binary level (shell wrapper replaces the versioned binary) and substitutes Sonnet/Haiku before the real binary runs. Expected to become unnecessary once Anthropic exposes agent model configuration.
+> **How this works:** Claude Code passes a model flag when spawning team agents. `./install.sh` intercepts spawns at the binary level (shell wrapper replaces the versioned binary) and substitutes Sonnet or Haiku before the real binary runs. Expected to become unnecessary once Anthropic exposes agent model configuration.
 
 ### Team Shapes
 
@@ -205,8 +200,6 @@ Large  (5):    planner(sonnet) + domain(sonnet) × 2 + unit-tester + scenario-te
 | [`/spawn-team`](.claude/skills/spawn-team/SKILL.md) | "set up a team", "spawn team" | Core orchestrator — analyze → plan → compose → execute |
 | [`/debate`](.claude/skills/debate/SKILL.md) | "debate", "architecture review" | Codex xhigh adversarial review (standalone or within spawn-team) |
 | [`/ralph`](.claude/skills/ralph/SKILL.md) | "don't stop", "ralph" | PRD-driven completion loop |
-| [`/hud`](.claude/skills/hud/SKILL.md) | "hud setup" | Claude Code status bar |
-| [`/configure-notifications`](.claude/skills/configure-notifications/SKILL.md) | "configure notifications" | Telegram / Discord / Slack |
 
 ---
 
@@ -218,7 +211,7 @@ Large  (5):    planner(sonnet) + domain(sonnet) × 2 + unit-tester + scenario-te
 | Permission denied | Add `"Skill(spawn-team)"` to `~/.claude/settings.json` permissions |
 | Agent Teams not working | Verify Claude Max + `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` |
 | Agents running as Opus | You must run Claude Code inside tmux. `tmux new-session -s dev && claude` |
-| Model wrapper not intercepting | Check `cat /tmp/claude-wrapper.log` — agent spawns should show `MODEL SWAP: claude-opus-4-6 → claude-sonnet-4-6`. If empty, re-run `./install.sh` |
+| Model wrapper not intercepting | Check `cat /tmp/claude-wrapper.log` — agent spawns should show `MODEL SWAP:` lines. If empty, re-run `./install.sh` |
 | Claude Code updated | Re-run `./install.sh` — the wrapper must be reinstalled at the new versioned binary path |
 | Codex exec failure | Auto-skipped. Install: `npm install -g @openai/codex` |
 | Agent idle | Normal. Only consumes quota on message receipt. Zero cost while idle. |
@@ -231,7 +224,7 @@ Built on ideas and patterns from these projects:
 
 | Project | Adopted | Their Strength |
 |---------|---------|----------------|
-| [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) by @Yeachan-Heo | Magic Keyword intent detection, ralph/HUD/notification originals | Intent detection & natural language interface |
+| [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) by @Yeachan-Heo | Magic Keyword intent detection, ralph persistence loop | Intent detection & natural language interface |
 | [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode) by @code-yeongyu | Planning Triad (Metis→Prometheus→Momus), Wave decomposition, 4-criteria verification | Plan decomposition & verification |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) by Anthropic | Agent Teams API, Plan Mode, worktree isolation | Foundation platform |
 | [Codex CLI](https://github.com/openai/codex) by OpenAI | ExecPlan pattern, Decision Log, xhigh reasoning | Independent review & analysis |

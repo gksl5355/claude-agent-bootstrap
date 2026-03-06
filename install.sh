@@ -8,7 +8,7 @@ SETTINGS_FILE="$HOME/.claude/settings.json"
 WRAPPER_SRC="$SCRIPT_DIR/.claude/scripts/claude-model-wrapper.sh"
 VERSION_DIR="$HOME/.local/share/claude/versions"
 
-SKILLS=(spawn-team debate ralph hud configure-notifications)
+SKILLS=(spawn-team debate ralph)
 
 echo "=== Team Orchestrator Installer ==="
 echo ""

@@ -2,16 +2,16 @@
 # Claude Code Model Override Wrapper
 #
 # WHY THIS EXISTS:
-#   Claude Code hardcodes --model claude-opus-4-6 when spawning team agents.
-#   No settings file or config can override this. This wrapper intercepts the
-#   spawn call and substitutes Sonnet or Haiku before the real binary runs.
+#   Claude Code passes a model flag when spawning team agents.
+#   This wrapper intercepts the --model argument and substitutes it with
+#   Sonnet (default) or Haiku (via signal file) before the real binary runs.
 #   Expected to become unnecessary once Anthropic exposes agent model config.
 #
 # HOW IT WORKS:
 #   1. install.sh moves the real binary to <version>.real
 #   2. This script takes its place at the versioned path
-#   3. Claude Code calls this with --model claude-opus-4-6 (its hardcoded value)
-#   4. The wrapper swaps the model arg and exec's the real binary
+#   3. Claude Code calls this with --model {some-model}
+#   4. The wrapper replaces the --model value and exec's the real binary
 #   5. Claude Code never knows the difference
 #
 # SELF-AWARE REAL PATH:
@@ -49,21 +49,26 @@ if [ -f "$SIGNAL" ]; then
     esac
 fi
 
-# Swap model argument, log the effective model
+# Swap --model value regardless of what Claude Code passes
 ARGS=()
 SWAPPED=false
+NEXT_IS_MODEL=false
 for arg in "$@"; do
-    case "$arg" in
-        claude-opus-4-6)
-            ARGS+=("$TARGET")
-            SWAPPED=true
-            ;;
-        *) ARGS+=("$arg") ;;
-    esac
+    if $NEXT_IS_MODEL; then
+        ARGS+=("$TARGET")
+        SWAPPED=true
+        ORIGINAL="$arg"
+        NEXT_IS_MODEL=false
+    elif [ "$arg" = "--model" ]; then
+        ARGS+=("$arg")
+        NEXT_IS_MODEL=true
+    else
+        ARGS+=("$arg")
+    fi
 done
 
 if $SWAPPED; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') MODEL SWAP: claude-opus-4-6 → $TARGET" >> /tmp/claude-wrapper.log
+    echo "$(date '+%Y-%m-%d %H:%M:%S') MODEL SWAP: $ORIGINAL → $TARGET" >> /tmp/claude-wrapper.log
 fi
 
 exec "$REAL" "${ARGS[@]}"
