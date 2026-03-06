@@ -32,6 +32,15 @@ cd claude-agent-bootstrap
 /spawn-team
 ```
 
+## Release
+
+버전 태그를 푸시하면 GitHub Release가 자동 생성/업데이트됩니다:
+
+```bash
+git tag v0.5.4
+git push origin v0.5.4
+```
+
 <details>
 <summary>수동 설치 / 선택 설치</summary>
 

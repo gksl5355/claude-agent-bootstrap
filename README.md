@@ -32,6 +32,15 @@ Then in Claude Code:
 /spawn-team
 ```
 
+## Release
+
+Push a version tag to create/update a GitHub Release automatically:
+
+```bash
+git tag v0.5.4
+git push origin v0.5.4
+```
+
 <details>
 <summary>Manual install / selective install</summary>
 
