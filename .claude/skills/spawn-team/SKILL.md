@@ -19,7 +19,14 @@ allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(
 
 ---
 
-## Step 0: Intent Scan
+## Step 0: Init
+
+**Tool preload** (single call, eliminates per-tool latency):
+```
+ToolSearch: "select:TeamCreate,TeamDelete,Agent,SendMessage,TaskCreate,TaskUpdate,TaskList,AskUserQuestion"
+```
+
+Cleanup (tmux mode): kill orphaned `claude-*` tmux sessions from previous runs. Preserve the current session.
 
 Auto-scan (no questions unless needed): package.json/requirements.txt/go.mod → stack, src/app/lib → scale, .git → worktree availability.
 
@@ -182,22 +189,20 @@ TeamCreate: team_name, description
 Per agent (Agent tool): subagent_type: "general-purpose", team_name, name: "{domain}-{role}", run_in_background: true
 ```
 
-**Model selection — write signal file via Bash BEFORE each Agent spawn:**
+**Model selection — `teammate.sh` handles routing automatically:**
+- Default = Sonnet. No signal needed for Sonnet agents.
+- Haiku agents: write signal BEFORE spawn:
 ```bash
-# Sonnet (complex coding, planning, multi-file)
-echo "claude-sonnet-4-6" > /tmp/claude-team-model
-
-# Haiku (simple tests, linting, repetitive checks)
-echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model
+echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-{agent-name}
 ```
-Signal file is consumed after one spawn. Default (no file) = Sonnet.
-Requires: tmux session + model wrapper installed via `install.sh`. Without tmux, agents run in-process and bypass the wrapper — all agents default to Opus.
+Signal consumed after one spawn. Agent-specific path prevents parallel race conditions.
+Requires: `CLAUDE_CODE_TEAMMATE_COMMAND` set to `teammate.sh` via `install.sh`.
 
 Partial spawn failure → TeamDelete rollback → notify → suggest retry.
 
 ### 7-2. Agent Prompts
 
-Read `.claude/skills/spawn-team/prompts.md` → inject Common Header + role-specific prompt for each agent. Append Wave info (COMPLEX only).
+Read `${CLAUDE_SKILL_DIR}/prompts.md` → inject Common Header + role-specific prompt for each agent. Append Wave info (COMPLEX only).
 
 ---
 
@@ -251,7 +256,9 @@ Shared type/schema change: non-breaking → approve / breaking → consider Deba
 3. AskUserQuestion: "Run Codex xhigh review before finalizing?" → yes: run ×1 (read-only). Failure → skip.
 4. Completion report
 
-**Shutdown conditions (AND):** all tasks completed + unit-tester PASS + scenario-tester PASS + (COMPLEX) all Wave criteria satisfied → shutdown_request to all → TeamDelete.
+**Shutdown conditions (AND):** all tasks completed + unit-tester PASS + scenario-tester PASS + (COMPLEX) all Wave criteria satisfied → shutdown_request to each agent individually (no broadcast) → TeamDelete.
+
+**Shutdown procedure:** Send individual `shutdown_request` to each agent. If no `shutdown_approved` within 15 seconds → `Bash: tmux kill-pane -t {paneId}` as fallback. After all agents terminated → cleanup any leftover panes in current session → TeamDelete.
 
 ---
 
@@ -268,6 +275,7 @@ Hard trigger: irreversible=true or impact=3. Soft: risk score 6+.
 
 - **Leader reads**: DONE items → `git diff --numstat` check only. High-risk (public API / auth / payment / 100+ LOC / post-FAIL fix) → inspect hunks directly.
 - **Idle**: quota consumed only on message. Keep agents alive until done.
+- **Messaging**: Use individual `SendMessage` per agent. Avoid `broadcast` — it may skip agents due to registration timing and costs scale with team size.
 - **Quota**: 1 agent ≈ 7×. Hard cap: 5 agents. Sub-agents do NOT count toward cap.
 - **Sub-agents**: depth-1 only (no nesting). ≤2 per agent. Haiku only. debugger=read-only, build-fixer=scoped edits.
 - **File isolation**: own domain only. Shared → Leader. 1 agent per file (MECE). Violation → revert.

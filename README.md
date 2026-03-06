@@ -2,7 +2,7 @@
 
 [🇰🇷 한국어](README.ko.md)
 
-![Version](https://img.shields.io/badge/version-0.5.2-blue)
+![Version](https://img.shields.io/badge/version-0.5.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 [![GitHub Release](https://img.shields.io/github/v/release/gksl5355/claude-agent-bootstrap)](https://github.com/gksl5355/claude-agent-bootstrap/releases)
@@ -24,13 +24,6 @@
 git clone https://github.com/gksl5355/claude-agent-bootstrap.git
 cd claude-agent-bootstrap
 ./install.sh
-```
-
-Then **start Claude Code inside tmux** (required for model routing):
-
-```bash
-tmux new-session -s dev
-claude
 ```
 
 Then in Claude Code:
@@ -71,9 +64,8 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 
 - **Claude Max** (Agent Teams support)
 - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `~/.claude/settings.json`
-- **tmux** — team agents must run inside a tmux session for model routing to work
-  - Anthropic's own documentation recommends tmux as the preferred entry point for agent teams (split-pane mode)
-  - Without tmux: agents run in-process and the model wrapper is bypassed — all agents default to Opus
+- **tmux** (recommended) — model routing (Sonnet/Haiku) requires `teammateMode: "tmux"`
+  - Without tmux: agents run in-process, `TEAMMATE_COMMAND` is ignored, all agents use the Leader's model
   - Install: `sudo apt install tmux` (Ubuntu) / `brew install tmux` (macOS)
 - Codex CLI (optional — for `/debate` and final review)
 
@@ -86,15 +78,16 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 {
   "teammateMode": "tmux",
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_TEAMMATE_COMMAND": "/home/you/.claude/teammate.sh",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "haiku"
   },
   "permissions": {
     "allow": [
       "Skill(spawn-team)",
       "Skill(debate)"
     ]
-  },
-  "model": "sonnet"
+  }
 }
 ```
 
@@ -104,6 +97,7 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 
 ```bash
 rm ~/.claude/skills/{spawn-team,debate,ralph}
+rm ~/.claude/teammate.sh
 ```
 
 ---
@@ -154,7 +148,7 @@ Claude Code Agent Teams are powerful, but manual setup requires many decisions �
 ### Flow
 
 ```
-Step 0   Intent scan               Auto-detect stack/scale. Ask only if ambiguous.
+Step 0   Init                      Tool preload + cleanup + auto-detect stack/scale.
 Step 1   Project analysis          Tech stack + domain detection + structure type [A/B/C]
 Step 2   Complexity scoring        Auto-score → SIMPLE / MEDIUM / COMPLEX
 Step 3   Scope confirmation        IN/OUT/DEFER user check (MEDIUM+ only)
@@ -181,7 +175,7 @@ Step 8   Execution loop            Implement → Test → Feedback → Merge →
 | Tests, debug, build fixes (sub-agents) | Haiku | Lightweight, self-spawned |
 | Final review, design critique | Codex xhigh | Independent perspective |
 
-> **How this works:** Claude Code passes a model flag when spawning team agents. `./install.sh` intercepts spawns at the binary level (shell wrapper replaces the versioned binary) and substitutes Sonnet or Haiku before the real binary runs. Expected to become unnecessary once Anthropic exposes agent model configuration.
+> **How this works:** `./install.sh` installs `teammate.sh` and sets `CLAUDE_CODE_TEAMMATE_COMMAND` in settings.json. When Claude Code spawns a teammate in tmux mode, it calls `teammate.sh` which strips the default `--model` flag and substitutes Sonnet (default) or Haiku (via signal file). No binary modification needed.
 
 ### Team Shapes
 
@@ -210,9 +204,9 @@ Large  (5):    planner(sonnet) + domain(sonnet) × 2 + unit-tester + scenario-te
 | "Skill not found: spawn-team" | Check `ls -la ~/.claude/skills/spawn-team`. If missing, re-run `./install.sh` |
 | Permission denied | Add `"Skill(spawn-team)"` to `~/.claude/settings.json` permissions |
 | Agent Teams not working | Verify Claude Max + `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` |
-| Agents running as Opus | You must run Claude Code inside tmux. `tmux new-session -s dev && claude` |
-| Model wrapper not intercepting | Check `cat /tmp/claude-wrapper.log` — agent spawns should show `MODEL SWAP:` lines. If empty, re-run `./install.sh` |
-| Claude Code updated | Re-run `./install.sh` — the wrapper must be reinstalled at the new versioned binary path |
+| Agents running as Opus/Leader model | Ensure `teammateMode: "tmux"` and run inside tmux. Check `cat /tmp/claude-teammate.log` for model entries |
+| teammate.sh not called | Verify `CLAUDE_CODE_TEAMMATE_COMMAND` in settings.json points to `~/.claude/teammate.sh` |
+| Model routing not working after settings change | Settings are locked at session start. Restart Claude Code for changes to take effect |
 | Codex exec failure | Auto-skipped. Install: `npm install -g @openai/codex` |
 | Agent idle | Normal. Only consumes quota on message receipt. Zero cost while idle. |
 

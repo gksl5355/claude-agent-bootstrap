@@ -36,6 +36,11 @@ Shared file edits → always via Leader approval first.
 ## Report Format
 DONE: status: DONE | files: {list} | summary: {one line} | accepts: passed
 FAIL: status: FAIL | ERR: test:{name} expected:{x} actual:{y} location:{file:line} repro:{cmd}
+
+## Shutdown
+When you receive a shutdown_request (JSON with type: "shutdown_request"),
+you MUST respond using the SendMessage tool with type: "shutdown_response"
+and approve: true. Do NOT just reply with text — use the tool.
 ```
 
 ---

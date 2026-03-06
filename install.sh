@@ -3,9 +3,9 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$SCRIPT_DIR/.claude/skills"
+SCRIPTS_DIR="$SCRIPT_DIR/.claude/scripts"
 TARGET_DIR="$HOME/.claude/skills"
 SETTINGS_FILE="$HOME/.claude/settings.json"
-WRAPPER_SRC="$SCRIPT_DIR/.claude/scripts/claude-model-wrapper.sh"
 VERSION_DIR="$HOME/.local/share/claude/versions"
 
 SKILLS=(spawn-team debate ralph)
@@ -23,76 +23,71 @@ for skill in "${SKILLS[@]}"; do
 done
 echo ""
 
-# ── 2. Model wrapper ───────────────────────────────────────────────────────
-echo "[2/4] Installing model override wrapper..."
-echo "  Claude Code hardcodes claude-opus-4-6 when spawning team agents."
-echo "  The wrapper intercepts spawns at the versioned binary path and"
-echo "  substitutes Sonnet or Haiku before the real binary runs."
-echo ""
+# ── 2. Teammate model wrapper ─────────────────────────────────────────────
+echo "[2/4] Installing teammate model wrapper..."
+TEAMMATE_SRC="$SCRIPTS_DIR/teammate.sh"
+TEAMMATE_DST="$HOME/.claude/teammate.sh"
 
-# Detect current Claude version directory
-VER=$(ls "$VERSION_DIR" 2>/dev/null | grep -v '\.real' | sort -V | tail -1)
-
-if [ -z "$VER" ]; then
-  echo "  ✗ Claude binary not found in $VERSION_DIR — skipping wrapper install"
-  echo "    Install Claude Code first, then re-run this script."
-  WRAPPER_SKIPPED=true
+if [ -f "$TEAMMATE_SRC" ]; then
+  cp "$TEAMMATE_SRC" "$TEAMMATE_DST"
+  chmod +x "$TEAMMATE_DST"
+  echo "  ✓ teammate.sh → ~/.claude/teammate.sh"
 else
-  VERSIONED_BIN="$VERSION_DIR/$VER"
-  VERSIONED_REAL="$VERSION_DIR/$VER.real"
-  echo "  Detected Claude version: $VER"
+  echo "  ✗ $TEAMMATE_SRC not found — skipping"
+fi
 
-  if [ -f "$VERSIONED_REAL" ]; then
-    # Already wrapped — update wrapper content only
-    echo "  ℹ Wrapper already installed. Updating wrapper script."
-    cp "$WRAPPER_SRC" "$VERSIONED_BIN"
-    chmod +x "$VERSIONED_BIN"
-    echo "  ✓ Wrapper updated at $VERSIONED_BIN"
-  else
-    # First install: move real binary aside, install wrapper in its place
-    mv "$VERSIONED_BIN" "$VERSIONED_REAL"
-    cp "$WRAPPER_SRC" "$VERSIONED_BIN"
-    chmod +x "$VERSIONED_BIN"
-    echo "  ✓ $VER.real → real binary"
-    echo "  ✓ $VER     → wrapper (intercepts all agent spawns)"
+# Migrate: remove old versioned binary wrapper (if exists)
+for real_bin in "$VERSION_DIR"/*.real 2>/dev/null; do
+  [ -f "$real_bin" ] || continue
+  base="${real_bin%.real}"
+  if [ -f "$base" ] && head -1 "$base" 2>/dev/null | grep -q '^#!'; then
+    echo "  ℹ Removing old binary wrapper: $(basename "$base")"
+    mv "$real_bin" "$base"
+    echo "  ✓ Restored $(basename "$base") to original binary"
   fi
+done
+[ -L "$HOME/.local/bin/claude.real" ] && rm "$HOME/.local/bin/claude.real" && echo "  ✓ Removed stale claude.real symlink"
 
-  # Keep ~/.local/bin/claude pointing to the wrapper
-  ln -sf "$VERSIONED_BIN"  "$HOME/.local/bin/claude"
-  ln -sf "$VERSIONED_REAL" "$HOME/.local/bin/claude.real"
-  echo "  ✓ ~/.local/bin/claude → wrapper"
-  echo ""
-  echo "  NOTE: If Claude Code updates to a new version, re-run ./install.sh"
-  echo "  to reinstall the wrapper at the new versioned path."
+# Point main symlink to latest version
+VER=$(ls "$VERSION_DIR" 2>/dev/null | sort -V | tail -1)
+if [ -n "$VER" ]; then
+  ln -sf "$VERSION_DIR/$VER" "$HOME/.local/bin/claude"
+  echo "  ✓ ~/.local/bin/claude → $VER"
+fi
 
-  WRAPPER_SKIPPED=false
+# Clean up old teammate-sonnet.sh
+if [ -f "$HOME/.claude/teammate-sonnet.sh" ]; then
+  echo "  ℹ Old teammate-sonnet.sh found — can be removed after verification"
 fi
 echo ""
 
 # ── 3. settings.json ───────────────────────────────────────────────────────
 echo "[3/4] Checking settings.json..."
 REQUIRED_SETTINGS='{
-  "teammateMode": "tmux",
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_TEAMMATE_COMMAND": "'"$TEAMMATE_DST"'",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "haiku"
   },
   "permissions": {
     "allow": [
       "Skill(spawn-team)",
       "Skill(debate)"
     ]
-  },
-  "model": "sonnet"
+  }
 }'
 
 if [ -f "$SETTINGS_FILE" ]; then
   echo "  ✓ $SETTINGS_FILE exists"
-  if ! grep -q "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" "$SETTINGS_FILE"; then
-    echo "  ⚠ Missing CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS — add it manually:"
+  if ! grep -q "CLAUDE_CODE_TEAMMATE_COMMAND" "$SETTINGS_FILE"; then
+    echo "  ⚠ Missing CLAUDE_CODE_TEAMMATE_COMMAND — add manually:"
     echo "$REQUIRED_SETTINGS"
   fi
+  if grep -q "teammate-sonnet" "$SETTINGS_FILE"; then
+    echo "  ⚠ Old teammate-sonnet.sh reference. Update to: $TEAMMATE_DST"
+  fi
 else
-  echo "  ✗ Not found. Creating with required settings..."
+  echo "  ✗ Not found. Creating..."
   mkdir -p "$(dirname "$SETTINGS_FILE")"
   echo "$REQUIRED_SETTINGS" > "$SETTINGS_FILE"
   echo "  ✓ Created $SETTINGS_FILE"
@@ -111,37 +106,25 @@ for skill in "${SKILLS[@]}"; do
   fi
 done
 
-if [ "$WRAPPER_SKIPPED" = false ]; then
-  if [ -f "$VERSIONED_REAL" ] && [ -x "$VERSIONED_BIN" ] && head -1 "$VERSIONED_BIN" | grep -q '^#!'; then
-    echo "  ✓ model wrapper: active (team agents will spawn as Sonnet)"
-  else
-    echo "  ✗ model wrapper: not active — check $VERSIONED_BIN"
-    OK=false
-  fi
+if [ -f "$TEAMMATE_DST" ] && [ -x "$TEAMMATE_DST" ]; then
+  echo "  ✓ teammate.sh: installed"
+else
+  echo "  ✗ teammate.sh: not found or not executable"
+  OK=false
 fi
 
 echo ""
 if $OK; then
   echo "=== Installation complete ==="
   echo ""
-  echo "IMPORTANT: Always run Claude Code inside tmux."
-  echo "  Team agents only use Sonnet/Haiku (not Opus) when spawned from a tmux session."
-  echo "  Without tmux, the model wrapper is bypassed and agents default to Opus."
-  echo ""
-  echo "  tmux new-session -s dev"
-  echo "  claude"
-  echo ""
   echo "Usage:"
   echo "  /spawn-team    — Spawn a team for your project"
   echo "  /debate        — Architecture review with Codex xhigh"
   echo "  /ralph         — PRD-based completion guarantee"
   echo ""
-  echo "Model control (before each Agent spawn in SKILL.md):"
-  echo "  Sonnet: echo \"claude-sonnet-4-6\"         > /tmp/claude-team-model"
-  echo "  Haiku:  echo \"claude-haiku-4-5-20251001\" > /tmp/claude-team-model"
-  echo ""
-  echo "To uninstall wrapper:"
-  echo "  rm ~/.local/bin/claude && mv ~/.local/bin/claude.real ~/.local/bin/claude"
+  echo "Model control:"
+  echo "  Default = Sonnet (no action needed)"
+  echo "  Haiku:  echo \"claude-haiku-4-5-20251001\" > /tmp/claude-team-model-{agent-name}"
 else
   echo "=== Installation had issues — check output above ==="
   exit 1

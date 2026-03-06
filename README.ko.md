@@ -2,7 +2,7 @@
 
 [🇺🇸 English](README.md)
 
-![Version](https://img.shields.io/badge/version-0.5.2-blue)
+![Version](https://img.shields.io/badge/version-0.5.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 [![GitHub Release](https://img.shields.io/github/v/release/gksl5355/claude-agent-bootstrap)](https://github.com/gksl5355/claude-agent-bootstrap/releases)
@@ -24,13 +24,6 @@
 git clone https://github.com/gksl5355/claude-agent-bootstrap.git
 cd claude-agent-bootstrap
 ./install.sh
-```
-
-그 다음 **tmux 안에서 Claude Code 실행** (모델 라우팅에 필수):
-
-```bash
-tmux new-session -s dev
-claude
 ```
 
 그 다음 Claude Code에서:
@@ -71,9 +64,8 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 
 - **Claude Max** (Agent Teams 지원)
 - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (`~/.claude/settings.json`)
-- **tmux** — 모델 라우팅이 작동하려면 tmux 세션 안에서 실행해야 함
-  - Anthropic 공식 문서에서도 에이전트 팀의 권장 실행 환경으로 tmux를 명시하고 있음 (split-pane 모드)
-  - tmux 없이 실행하면: 에이전트가 in-process로 뜨고 wrapper가 우회됨 → 전부 Opus로 실행됨
+- **tmux** (권장) — 모델 라우팅(Sonnet/Haiku)에는 `teammateMode: "tmux"` 필요
+  - tmux 없이 실행하면: in-process 모드로 동작하고, `TEAMMATE_COMMAND`가 무시되어 Leader 모델로 실행됨
   - 설치: `sudo apt install tmux` (Ubuntu) / `brew install tmux` (macOS)
 - Codex CLI (선택 — `/debate`, 최종 리뷰 시)
 
@@ -86,15 +78,16 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 {
   "teammateMode": "tmux",
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_TEAMMATE_COMMAND": "/home/you/.claude/teammate.sh",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "haiku"
   },
   "permissions": {
     "allow": [
       "Skill(spawn-team)",
       "Skill(debate)"
     ]
-  },
-  "model": "sonnet"
+  }
 }
 ```
 
@@ -104,6 +97,7 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 
 ```bash
 rm ~/.claude/skills/{spawn-team,debate,ralph}
+rm ~/.claude/teammate.sh
 ```
 
 ---
@@ -154,7 +148,7 @@ Claude Code Agent Teams는 강력하지만, 직접 구성하려면 결정할 게
 ### 전체 플로우
 
 ```
-Step 0   의도 스캔       스택/규모 자동 감지. 모호할 때만 질문.
+Step 0   초기화         Tool preload + 정리 + 스택/규모 자동 감지.
 Step 1   프로젝트 분석    기술 스택 + 도메인 감지 + 구조 타입 [A/B/C]
 Step 2   복잡도 판단     자동 점수 → SIMPLE / MEDIUM / COMPLEX
 Step 3   범위 확인       IN/OUT/DEFER 사용자 확인 (MEDIUM+ only)
@@ -181,7 +175,7 @@ Step 8   실행 루프       구현 → 테스트 → 피드백 → 머지 → C
 | 테스트, 디버그, 빌드 수정 (서브에이전트) | Haiku | 경량, 자기 스폰 |
 | 최종 리뷰, 설계 비판 | Codex xhigh | 독립적 관점 |
 
-> **작동 방식:** Claude Code는 팀 에이전트 스폰 시 모델 플래그를 전달한다. `./install.sh`이 versioned 바이너리 경로에 셸 래퍼를 설치해 스폰을 인터셉트하고, 실제 바이너리 실행 전에 Sonnet/Haiku로 교체한다. Anthropic이 에이전트 모델 설정을 공식 지원하면 래퍼는 불필요해진다.
+> **작동 방식:** `./install.sh`이 `teammate.sh`를 설치하고 `CLAUDE_CODE_TEAMMATE_COMMAND`를 settings.json에 설정한다. tmux 모드에서 Claude Code가 teammate를 스폰하면 `teammate.sh`가 호출되어 기본 `--model` 플래그를 Sonnet(기본) 또는 Haiku(signal file)로 교체한다. 바이너리 수정 없음.
 
 ### 에이전트 구성
 
@@ -210,9 +204,9 @@ Step 8   실행 루프       구현 → 테스트 → 피드백 → 머지 → C
 | "Skill not found: spawn-team" | `ls -la ~/.claude/skills/spawn-team` 확인. 없으면 `./install.sh` 재실행 |
 | Permission denied | `~/.claude/settings.json`에 `"Skill(spawn-team)"` 허용 추가 |
 | Agent Teams 안 됨 | Claude Max 확인 + `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` 설정 |
-| 에이전트가 Opus로 뜸 | tmux 안에서 Claude Code 실행 필수. `tmux new-session -s dev && claude` |
-| 모델 wrapper 미작동 | `cat /tmp/claude-wrapper.log` — `MODEL SWAP:` 라인이 있어야 함. 없으면 `./install.sh` 재실행 |
-| Claude Code 업데이트됨 | `./install.sh` 재실행 — 새 versioned 바이너리 경로에 래퍼 재설치 필요 |
+| 에이전트가 Opus/Leader 모델로 뜸 | `teammateMode: "tmux"` 확인 + tmux 안에서 실행. `cat /tmp/claude-teammate.log`로 모델 확인 |
+| teammate.sh 미호출 | settings.json의 `CLAUDE_CODE_TEAMMATE_COMMAND`가 `~/.claude/teammate.sh`를 가리키는지 확인 |
+| 설정 변경 후 모델 라우팅 안 됨 | settings.json은 세션 시작 시 고정됨. Claude Code 재시작 필요 |
 | Codex exec 실패 | 자동 스킵됨. 설치: `npm install -g @openai/codex` |
 | 에이전트 idle 상태 | 정상. 메시지 받을 때만 쿼터 소모. 비용 없음. |
 
