@@ -77,11 +77,14 @@ grep "agent_done" events.yml
 grep "status: COMPLETED" report.yml
 ```
 
-#### 팀 스폰 제안
+#### 팀 스폰 구성
 ```
-artifacts-writer (sonnet) — SKILL.md §7+§8+§8.5 작성
-section-reviewer (haiku)  — 작성된 내용 검증
+spawn-writer-spawn (sonnet)  — §7 (plan.yml 작성 로직)
+spawn-writer-exec  (sonnet)  — §8 + §8.5 (events/report 작성 로직)
+spawn-tester       (haiku)   — 수용 기준 검증 (grep으로 확인)
 ```
+→ §7와 §8+§8.5는 다른 섹션이므로 **worktree 격리 후 병렬 작성 가능**.
+→ 머지 순서: spawn-writer-spawn 먼저, 이후 spawn-writer-exec.
 
 ---
 
@@ -113,9 +116,10 @@ section-reviewer (haiku)  — 작성된 내용 검증
 # ✗ 또는 ✓ Codex CLI
 ```
 
-#### 팀 스폰 제안
+#### 팀 스폰 구성
+파일 1개 → 단일 에이전트로 충분.
 ```
-doctor-writer (sonnet) — SKILL.md 작성
+doctor-writer (sonnet) — SKILL.md 전체 작성 + 자체 검증
 ```
 
 ---
@@ -237,6 +241,15 @@ echo "test.skip('foo', () => {})" >> tests/foo.test.ts
 | **생성** | `tests/integration/test-impact-brief.sh` |
 | **금지** | `tests/unit/`, `tests/fixtures/`, 다른 모든 파일 |
 
+#### 팀 스폰 구성
+테스트 파일 3개 완전 독립 → **3개 병렬 작성 최적**.
+```
+test-writer-confidence (haiku) — test-confidence-scoring.sh
+test-writer-ownership  (haiku) — test-ownership-guard.sh
+test-writer-impact     (haiku) — test-impact-brief.sh
+```
+→ 3개 동시 작성. 머지 순서 무관 (파일 겹침 없음).
+
 #### 수용 기준
 ```bash
 bash tests/integration/test-confidence-scoring.sh  # exit 0
@@ -316,6 +329,16 @@ bash tests/integration/test-impact-brief.sh        # exit 0
 - 기본 테스트 파일
 - SIMPLE/MEDIUM/COMPLEX 복잡도를 유발하는 도메인 수 반영
 
+#### 팀 스폰 구성
+ralph + fixture 3개 = 4개 독립 작업 → **최대 병렬**.
+```
+ralph-writer     (sonnet) — ralph/SKILL.md 수정
+fixture-simple   (haiku)  — tests/fixtures/simple-app/ 생성
+fixture-medium   (haiku)  — tests/fixtures/medium-app/ 생성
+fixture-complex  (sonnet) — tests/fixtures/complex-app/ 생성
+```
+→ 4개 동시 작업. 파일 겹침 없음.
+
 #### 수용 기준
 ```bash
 # 각 fixture에서 spawn-team 실행 후
@@ -340,6 +363,16 @@ bash tests/integration/test-impact-brief.sh        # exit 0
 | **이동** | `docs/CONFIGURATION.md` → `docs/guide/configuration.md` |
 | **이동** | `docs/WORKFLOW.md` → `docs/guide/workflow.md` |
 | **금지** | `.claude/skills/`, `tests/`, `install.sh` |
+
+#### 팀 스폰 구성
+문서 파일 다수 독립 → **최대 병렬**.
+```
+docs-getting-started (sonnet) — docs/getting-started.md + 이동 작업
+docs-guide-spawn     (haiku)  — docs/guide/spawn-team.md
+docs-guide-skills    (haiku)  — docs/guide/debate.md + doctor.md
+docs-readme          (sonnet) — README.md + README.ko.md (영/한 동시)
+```
+→ 4개 동시. 파일 겹침 없음.
 
 #### 수용 기준
 - README.md에 v1.0 features 섹션 (confidence harness, doctor, preview) 존재
