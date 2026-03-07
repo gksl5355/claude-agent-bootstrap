@@ -37,15 +37,17 @@ else
 fi
 
 # Migrate: remove old versioned binary wrapper (if exists)
-for real_bin in "$VERSION_DIR"/*.real 2>/dev/null; do
+shopt -s nullglob
+for real_bin in "$VERSION_DIR"/*.real; do
   [ -f "$real_bin" ] || continue
   base="${real_bin%.real}"
   if [ -f "$base" ] && head -1 "$base" 2>/dev/null | grep -q '^#!'; then
-    echo "  ℹ Removing old binary wrapper: $(basename "$base")"
+    echo "  Removing old binary wrapper: $(basename "$base")"
     mv "$real_bin" "$base"
-    echo "  ✓ Restored $(basename "$base") to original binary"
+    echo "  Restored $(basename "$base") to original binary"
   fi
 done
+shopt -u nullglob
 [ -L "$HOME/.local/bin/claude.real" ] && rm "$HOME/.local/bin/claude.real" && echo "  ✓ Removed stale claude.real symlink"
 
 # Point main symlink to latest version
