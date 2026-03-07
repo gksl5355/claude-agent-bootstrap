@@ -3,6 +3,14 @@
 > 각 Claude Code 세션이 독립적으로 구현할 수 있도록 세션별 완전 스펙을 정의.
 > 세션 간 파일 충돌 없음이 보장되어야 한다.
 
+## 구현 시작 전 필독 순서
+
+1. `docs/internal/PRD.md` — 기능 정의 + 요구사항 (What)
+2. `docs/internal/TRD.md` — 스키마 + 알고리즘 + 셸 명령 (How)
+3. 이 파일(SILOS.md) — 담당 Silo 섹션 (Who/When/Which files)
+
+각 Silo 섹션의 "TRD.md §Fx 참조"는 TRD에서 해당 섹션을 읽으라는 의미.
+
 ---
 
 ## 전체 세션 맵
