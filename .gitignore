@@ -15,6 +15,9 @@ QUICKREF_*.md
 SOURCES.md
 RESEARCH_INDEX.md
 
+# Private (personal docs, career notes, etc.)
+private/
+
 # Logs
 *.log
 
