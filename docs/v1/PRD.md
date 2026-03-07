@@ -285,9 +285,26 @@ Anti-pattern hits are logged as events in `events.yml`:
   severity: pause
   detail: "Added .skip() to 2 test cases"
   action: escalated_to_leader
+  verdict: null    # filled post-run: true_positive | false_positive | accepted_risk
 ```
 
-Confidence harness (F2) reads anti-pattern counts from events.yml for scoring.
+#### Anti-pattern promotion pipeline (3-layer)
+
+Not all failures become enforced rules. Promotion requires meeting 2+ criteria:
+- **Recurrence**: same failure ≥2 times
+- **Severity**: data loss, mass edits, deploy failure risk
+- **Confidence**: root cause clearly verified
+- **Scope**: applies repo-wide (not one directory only)
+
+```
+Layer 1: Raw failure log     → all events.yml anti_pattern entries
+Layer 2: Candidate           → recurrence or high-severity entries
+Layer 3: Enforced (current)  → AP001-AP008 in this PRD
+```
+
+Post-run: Leader marks each anti_pattern event as `true_positive`, `false_positive`, or `accepted_risk`.
+Future runs: high FP-rate rules auto-downgrade (`block → pause → warn`).
+Confidence harness (F2) reads anti-pattern counts + FP rates from events.yml for scoring.
 
 ### F6: doctor command
 **Environment validation and safe setup.**
