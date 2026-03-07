@@ -302,9 +302,10 @@ Layer 2: Candidate           → recurrence or high-severity entries
 Layer 3: Enforced (current)  → AP001-AP008 in this PRD
 ```
 
-Post-run: Leader marks each anti_pattern event as `true_positive`, `false_positive`, or `accepted_risk`.
-Future runs: high FP-rate rules auto-downgrade (`block → pause → warn`).
-Confidence harness (F2) reads anti-pattern counts + FP rates from events.yml for scoring.
+Post-run: Leader marks each anti_pattern event verdict manually.
+Confidence harness (F2) reads anti-pattern hit counts from events.yml for scoring.
+
+> **P1/P2 boundary**: verdict field is stored in P1 (YAML). Cross-run FP analysis and auto-severity adjustment → Project 2 scope.
 
 ### F6: doctor command
 **Environment validation and safe setup.**
