@@ -236,15 +236,58 @@ Estimated token cost: ~$1.50
 Proceed? [y/n/adjust]
 ```
 
-### F5: Ownership Enforcement
+### F5: Ownership Enforcement + Anti-Pattern Detection
 **Code-enforced, not prompt-requested.**
 
+#### Ownership Enforcement
 1. Generate ownership manifest in plan.yml (F1)
 2. During run: Leader checks `git diff --name-only` per agent against manifest
 3. Out-of-scope files → auto-revert + log scope_violation event
 4. Post-merge: final `git diff --name-only` vs manifest → flag any leaks
 
 Already partially described in current SKILL.md §8-4. Difference: deterministic check + artifact logging, not just prompt instruction.
+
+#### Anti-Pattern Detection (v1.0 scope)
+
+Integrated into the execution loop, not a separate subsystem. Each detection has a severity:
+- **block**: deterministic, trust-breaking → auto-revert or halt
+- **pause**: dangerous but may be legitimate → escalate to Leader/user
+- **warn**: smell, not proof → log + confidence penalty
+
+| ID | Anti-pattern | Detection | Severity | Check point |
+|----|-------------|-----------|----------|-------------|
+| AP001 | Out-of-scope edit | `git diff --name-only` vs ownership manifest | block | checkpoint, agent_done, pre_merge |
+| AP002 | Shared file edit without decision | touches shared file, no `decisions.yml` entry | pause | agent_done, pre_merge |
+| AP003 | Role leakage | tester/debugger/read-only agent writes files | block | agent_done |
+| AP005 | Done without evidence | task DONE but no PASS event for accepts criteria | block | pre_merge |
+| AP006 | Retry thrash | same task fails 2+ times | pause | test_result |
+| AP007 | Test evasion | diff adds `.skip`, `xdescribe`, `eslint-disable`, `ts-ignore`, `\|\| true` | pause | agent_done, pre_merge |
+| AP008 | Stale merge | agent branch behind leader after other merges | pause | pre_merge |
+
+Detection shell patterns:
+```bash
+# AP001/AP003: scope check
+git -C "$wt" diff --name-only "$base" | grep -vE "$owned_pattern"
+
+# AP007: test evasion
+git -C "$wt" diff -U0 "$base" | grep -E '^\+.*(\.skip\(|describe\.only\(|xdescribe\(|eslint-disable|ts-ignore|\|\| true)'
+
+# AP008: stale check
+git -C "$wt" merge-base --is-ancestor HEAD "$leader_head"
+```
+
+Anti-pattern hits are logged as events in `events.yml`:
+```yaml
+- ts: "14:46:00"
+  type: anti_pattern
+  rule: AP007
+  agent: auth-be
+  severity: pause
+  detail: "Added .skip() to 2 test cases"
+  action: escalated_to_leader
+```
+
+Confidence harness (F2) reads anti-pattern counts from events.yml for scoring.
 
 ### F6: doctor command
 **Environment validation and safe setup.**
