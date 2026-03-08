@@ -2,7 +2,7 @@
 
 [🇰🇷 한국어](README.ko.md)
 
-![Version](https://img.shields.io/badge/version-0.5.3-blue)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 [![GitHub Release](https://img.shields.io/github/v/release/gksl5355/claude-agent-bootstrap)](https://github.com/gksl5355/claude-agent-bootstrap/releases)
@@ -11,11 +11,12 @@
 
 ```
 /spawn-team
-→ Detected 3 domains (auth, products, orders)
-→ Complexity: MEDIUM
-→ Spawned 4 agents: auth-be, products-be, orders-be, unit-tester
+→ Experience brief: auth-be scope drift on database.ts (3x) — excluded from scope
+→ Detected 3 domains (auth, products, orders) → MEDIUM (score 8)
+→ Team: auth-be(sonnet), products-be(sonnet), orders-be(sonnet), unit-tester(haiku)
+→ Run: .claude/runs/2026-03-08-001/
 → Implement → Test → Fix → Retest → Merge
-→ Done.
+→ Done. (success_rate: 1.0, retries: 1, verdict: "Clean run")
 ```
 
 ## Quick Start
@@ -140,6 +141,19 @@ Claude Code Agent Teams are powerful, but manual setup requires many decisions �
 | **Circuit breaker** | 2 failures → debugger → still failing → user escalation |
 | **Worktree merge** | Per-agent isolated worktree + sequential merge + boundary check |
 
+### v1.0: Run Artifacts + Learning
+
+| Feature | Description |
+|---------|-------------|
+| **Run artifacts** | Every run produces `plan.yml`, `state.yml`, `events.yml`, `report.yml` in `.claude/runs/{id}/` |
+| **Atomic state** | Leader writes `state.yml` via tmp+sync+mv. Agents read only. Single-writer, no conflicts |
+| **Per-run judgment** | `report.yml` with success_rate, retry_rate, scope_violations, verdict |
+| **Pattern detection** | Bottom-up: problems observed across runs → auto-warned on next spawn (3+ occurrences) |
+| **Experience brief** | Past run data shown at spawn time — proven team configs, recurring issues |
+| **Preview mode** | `--preview` shows plan + experience brief without spawning agents |
+| **Doctor** | `/doctor` validates environment (Claude Code, tmux, settings) and patches config |
+| **Lifecycle** | Finished agents cleaned (worktree + tmux), runs archived after 7 days |
+
 ### Opt-in
 
 | Feature | Trigger | Description |
@@ -164,8 +178,8 @@ Step 3   Scope confirmation        IN/OUT/DEFER user check (MEDIUM+ only)
 Step 4   Planning                  Interview + Wave decomposition + criteria (COMPLEX only)
 Step 5   Team composition          Agent count + model + worktree mode
 Step 6   User confirmation         Final sign-off on team + plan
-Step 7   Spawn                     Create agents + MECE prompts
-Step 8   Execution loop            Implement → Test → Feedback → Merge → Codex review
+Step 7   Spawn                     Preview check → experience brief → run init → create agents
+Step 8   Execution loop            State management → implement → test → merge → report
 ```
 
 ### Complexity Paths
@@ -203,6 +217,7 @@ Large  (5):    planner(sonnet) + domain(sonnet) × 2 + unit-tester + scenario-te
 | [`/spawn-team`](.claude/skills/spawn-team/SKILL.md) | "set up a team", "spawn team" | Core orchestrator — analyze → plan → compose → execute |
 | [`/debate`](.claude/skills/debate/SKILL.md) | "debate", "architecture review" | Codex xhigh adversarial review (standalone or within spawn-team) |
 | [`/ralph`](.claude/skills/ralph/SKILL.md) | "don't stop", "ralph" | PRD-driven completion loop |
+| [`/doctor`](.claude/skills/doctor/SKILL.md) | "doctor", "health check" | Environment validation + settings patch |
 
 ---
 

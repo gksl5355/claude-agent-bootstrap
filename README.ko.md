@@ -2,7 +2,7 @@
 
 [🇺🇸 English](README.md)
 
-![Version](https://img.shields.io/badge/version-0.5.3-blue)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 [![GitHub Release](https://img.shields.io/github/v/release/gksl5355/claude-agent-bootstrap)](https://github.com/gksl5355/claude-agent-bootstrap/releases)
@@ -11,11 +11,12 @@
 
 ```
 /spawn-team
-→ 도메인 3개 감지 (auth, products, orders)
-→ 복잡도 MEDIUM 판정
-→ 에이전트 4명 구성: auth-be, products-be, orders-be, unit-tester
-→ 작업 지시 → 구현 → 테스트 → 버그 수정 → 재검증 → 머지
-→ 끝.
+→ 경험 브리프: auth-be가 database.ts 범위 이탈 3회 — 스코프에서 제외
+→ 도메인 3개 감지 (auth, products, orders) → MEDIUM (점수 8)
+→ 팀: auth-be(sonnet), products-be(sonnet), orders-be(sonnet), unit-tester(haiku)
+→ 런: .claude/runs/2026-03-08-001/
+→ 구현 → 테스트 → 수정 → 재검증 → 머지
+→ 완료. (success_rate: 1.0, retries: 1, verdict: "Clean run")
 ```
 
 ## Quick Start
@@ -140,6 +141,19 @@ Claude Code Agent Teams는 강력하지만, 직접 구성하려면 결정할 게
 | **Circuit Breaker** | 2회 실패 → debugger → 그래도 실패 → 사용자 에스컬레이션 |
 | **Worktree 머지** | 에이전트별 isolated worktree + 순차 머지 + 경계 위반 체크 |
 
+### v1.0: 런 아티팩트 + 학습
+
+| 기능 | 설명 |
+|------|------|
+| **런 아티팩트** | 매 실행마다 `plan.yml`, `state.yml`, `events.yml`, `report.yml` 생성 (`.claude/runs/{id}/`) |
+| **원자적 상태** | Leader가 tmp+sync+mv로 `state.yml` 작성. 에이전트는 읽기만. 단일 라이터, 충돌 없음 |
+| **실행별 판정** | `report.yml`에 success_rate, retry_rate, scope_violations, verdict 기록 |
+| **패턴 감지** | 바텀업: 여러 실행에서 관찰된 문제 → 3회 이상 시 다음 스폰에서 자동 경고 |
+| **경험 브리프** | 스폰 시 과거 실행 데이터 표시 — 검증된 팀 구성, 반복 이슈 |
+| **프리뷰 모드** | `--preview`로 에이전트 스폰 없이 계획 + 경험 브리프 확인 |
+| **Doctor** | `/doctor`로 환경 검증 (Claude Code, tmux, 설정) + 설정 패치 |
+| **라이프사이클** | 완료된 에이전트 정리 (worktree + tmux), 7일 지난 런 자동 아카이브 |
+
 ### 옵트인
 
 | 기능 | 트리거 | 설명 |
@@ -164,8 +178,8 @@ Step 3   범위 확인       IN/OUT/DEFER 사용자 확인 (MEDIUM+ only)
 Step 4   계획 수립       인터뷰 + Wave 분해 + 완료 기준 (COMPLEX만)
 Step 5   팀 구성 제안     에이전트 수 + 모델 + 워크트리 모드
 Step 6   사용자 확인     팀 + 계획 최종 승인
-Step 7   팀 스폰        에이전트 생성 + MECE 프롬프트
-Step 8   실행 루프       구현 → 테스트 → 피드백 → 머지 → Codex 리뷰
+Step 7   팀 스폰        프리뷰 체크 → 경험 브리프 → 런 초기화 → 에이전트 생성
+Step 8   실행 루프       상태 관리 → 구현 → 테스트 → 머지 → 리포트
 ```
 
 ### 복잡도별 경로
@@ -203,6 +217,7 @@ Step 8   실행 루프       구현 → 테스트 → 피드백 → 머지 → C
 | [`/spawn-team`](.claude/skills/spawn-team/SKILL.md) | "팀 구성", "spawn team" | 핵심 오케스트레이터 |
 | [`/debate`](.claude/skills/debate/SKILL.md) | "debate", "아키텍처 토론" | Codex xhigh 적대적 검토 |
 | [`/ralph`](.claude/skills/ralph/SKILL.md) | "끝날 때까지", "ralph" | PRD 완료 보장 |
+| [`/doctor`](.claude/skills/doctor/SKILL.md) | "doctor", "환경 체크" | 환경 검증 + 설정 패치 |
 
 ---
 
