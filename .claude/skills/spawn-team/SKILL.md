@@ -10,7 +10,7 @@ triggers:
   - "팀 스폰"
   - "팀 만들어"
 argument-hint: "[project path]"
-allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(wc *), Bash(sg *), Bash(echo *), Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, TeamDelete, SendMessage, AskUserQuestion
+allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(wc *), Bash(sg *), Bash(echo *), Bash(mkdir *), Bash(ln *), Bash(mv *), Bash(sync *), Bash(cat *), Bash(date *), Bash(printf *), Bash(ls *), Bash(tmux *), Bash(test *), Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, TeamDelete, SendMessage, AskUserQuestion
 ---
 
 ## Roles
