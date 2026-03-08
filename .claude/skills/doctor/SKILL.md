@@ -17,6 +17,22 @@ Output a clear ✓/✗ report, then offer to patch `~/.claude/settings.json` for
 
 ---
 
+## Step 0: Read settings.json
+
+Before running checks, read `~/.claude/settings.json` using the **Read tool** (not bash).
+Store the content for use in checks 3-5,8. This avoids jq dependency for basic reads.
+
+Also check jq availability (one bash call):
+```bash
+which jq 2>/dev/null && echo "jq:yes" || echo "jq:no"
+```
+
+If jq not available, extract values from the Read output using python3:
+```bash
+python3 -c "import json,sys; d=json.load(open('${HOME}/.claude/settings.json')); print(d.get('key',''))"
+```
+Or grep as last resort: `grep -o '"key": *"[^"]*"' ~/.claude/settings.json | head -1`
+
 ## Step 1: Run All Checks
 
 Run all 8 checks in parallel (independent). Collect results before printing anything.
@@ -36,27 +52,26 @@ tmux -V
 - ✗ if command not found
 
 ### Check 3 — CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS
+Primary: check env var `$CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`.
+Fallback: extract from settings.json content read in Step 0.
 ```bash
 echo "${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS}"
 ```
-Also check `jq '.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS' ~/.claude/settings.json` as fallback.
-- ✓ if value is `"1"`
+- ✓ if env var = `"1"`, OR settings.json has `"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"`
 - ✗ otherwise (missing or wrong value)
 - **Patchable**: add `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"` to settings.json
 
 ### Check 4 — TEAMMATE_COMMAND executable
+Extract `CLAUDE_CODE_TEAMMATE_COMMAND` from settings.json content (Step 0), then:
 ```bash
-TEAMMATE_CMD=$(jq -r '.env.CLAUDE_CODE_TEAMMATE_COMMAND // empty' ~/.claude/settings.json 2>/dev/null)
-test -n "$TEAMMATE_CMD" && test -x "$TEAMMATE_CMD"
+test -n "${TEAMMATE_CMD}" && test -x "${TEAMMATE_CMD}"
 ```
-- ✓ if `CLAUDE_CODE_TEAMMATE_COMMAND` is set in settings.json AND the file exists and is executable
+- ✓ if path set AND file exists and is executable
 - ✗ if not set, file missing, or not executable
 - Reason shown: which condition failed
 
 ### Check 5 — teammateMode in settings.json
-```bash
-jq -r '.teammateMode // empty' ~/.claude/settings.json
-```
+Extract `teammateMode` from settings.json content read in Step 0.
 - ✓ if value is `"tmux"`
 - ✗ otherwise
 - **Patchable**: set `teammateMode = "tmux"` in settings.json
@@ -76,10 +91,10 @@ git --version
 - ✗ if command not found
 
 ### Check 8 — CLAUDE_CODE_SUBAGENT_MODEL
+Extract from settings.json content (Step 0). Also check env var:
 ```bash
-jq -r '.env.CLAUDE_CODE_SUBAGENT_MODEL // empty' ~/.claude/settings.json
+echo "${CLAUDE_CODE_SUBAGENT_MODEL}"
 ```
-Also check env var `$CLAUDE_CODE_SUBAGENT_MODEL`.
 - ✓ if value is `"haiku"` (recommended default)
 - ⚠ if not set (warn — system still works, defaults to Sonnet for sub-agents)
 - ✗ if set to an unrecognized value
