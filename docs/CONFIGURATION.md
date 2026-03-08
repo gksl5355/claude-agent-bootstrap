@@ -1,24 +1,24 @@
 # Configuration Guide
 
-Team Orchestrator 설치 후 설정 옵션.
+Settings available after installing Team Orchestrator.
 
 ---
 
-## 필수 설정
+## Required Settings
 
 ### `~/.claude/settings.json`
 
 ```jsonc
 {
+  "teammateMode": "tmux",
   "env": {
-    // Agent Teams 활성화 (필수)
+    // Enable Agent Teams (required)
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    // tmux 기반 에이전트 모드 (필수)
-    "teammateMode": "tmux"
+    // Model routing script installed by install.sh (required for Haiku routing)
+    "CLAUDE_CODE_TEAMMATE_COMMAND": "/home/you/.claude/teammate.sh"
   },
   "permissions": {
     "allow": [
-      // 핵심 스킬 (필수)
       "Skill(spawn-team)",
       "Skill(debate)"
     ]
@@ -26,11 +26,13 @@ Team Orchestrator 설치 후 설정 옵션.
 }
 ```
 
+> **Note:** `teammateMode` must be at the top level, not inside `env`.
+
 ---
 
-## 선택 설정
+## Optional Settings
 
-### 전체 스킬 활성화
+### All skills
 
 ```jsonc
 {
@@ -39,40 +41,37 @@ Team Orchestrator 설치 후 설정 옵션.
       "Skill(spawn-team)",
       "Skill(debate)",
       "Skill(ralph)",
-      "Skill(hud)",
-      "Skill(configure-notifications)"
+      "Skill(doctor)"
     ]
   }
 }
 ```
 
+### Haiku sub-agents
+
+```jsonc
+{
+  "env": {
+    "CLAUDE_CODE_SUBAGENT_MODEL": "haiku"
+  }
+}
+```
+
+Reduces cost for sub-agents (debugger, build-fixer). Without this, sub-agents use the Leader's model.
+
 ### Codex CLI
 
-Debate Mode와 최종 리뷰에 사용. 없어도 자동 스킵됨.
+Used for Debate Mode and final review. Auto-skipped if not installed.
 
 ```bash
 npm install -g @openai/codex
 ```
 
-### HUD (상태 표시줄)
-
-```bash
-/hud
-# → ~/.claude/hud/team-hud.mjs 생성 + settings.json statusline 설정
-```
-
-### 알림 (Telegram/Discord/Slack)
-
-```bash
-/configure-notifications
-# → 플랫폼 선택 + 토큰/웹훅 설정
-```
-
 ---
 
-## 프로젝트별 오버라이드
+## Per-project Override
 
-프로젝트 루트의 `.claude/settings.json`에서 전역 설정을 오버라이드할 수 있다.
+Override global settings in `.claude/settings.json` at the project root:
 
 ```jsonc
 // your-project/.claude/settings.json
@@ -80,7 +79,7 @@ npm install -g @openai/codex
   "permissions": {
     "allow": [
       "Skill(spawn-team)"
-      // 이 프로젝트에서는 debate 비활성화
+      // debate disabled for this project
     ]
   }
 }
@@ -88,30 +87,28 @@ npm install -g @openai/codex
 
 ---
 
-## 환경 변수
+## Environment Variables
 
-| 변수 | 필수 | 설명 |
-|------|------|------|
-| `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | Yes | "1"로 설정. Agent Teams 기능 활성화. |
-| `teammateMode` | Yes | "tmux". 에이전트 실행 모드. |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | Yes | Set to `"1"`. Enables Agent Teams. |
+| `CLAUDE_CODE_TEAMMATE_COMMAND` | Yes (for model routing) | Path to `teammate.sh`. Installed by `install.sh`. |
+| `CLAUDE_CODE_SUBAGENT_MODEL` | No | Set to `"haiku"` to use Haiku for sub-agents. |
 
 ---
 
-## 디렉토리 구조
+## Directory Structure
 
-설치 후 `~/.claude/` 구조:
+After installation, `~/.claude/` layout:
 
 ```
 ~/.claude/
 ├── skills/
 │   ├── spawn-team → {repo}/.claude/skills/spawn-team  (symlink)
 │   ├── debate     → {repo}/.claude/skills/debate      (symlink)
-│   ├── ralph      → {repo}/.claude/skills/ralph       (symlink)
-│   ├── hud        → {repo}/.claude/skills/hud         (symlink)
-│   └── configure-notifications → ...                   (symlink)
-├── settings.json   (사용자 설정)
-├── teams/          (런타임 - 활성 팀 정보)
-├── tasks/          (런타임 - 태스크 목록)
-└── hud/            (HUD 설정 시 생성)
-    └── team-hud.mjs
+│   └── ralph      → {repo}/.claude/skills/ralph       (symlink)
+├── teammate.sh     (model routing script)
+├── settings.json   (user settings)
+├── teams/          (runtime — active team info)
+└── tasks/          (runtime — task lists)
 ```

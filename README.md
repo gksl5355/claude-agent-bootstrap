@@ -134,11 +134,14 @@ Claude Code Agent Teams are powerful, but manual setup requires many decisions �
 |---------|-------------|
 | **Domain detection** | Extracts domains from project structure (routes/, services/, pages/) |
 | **Structure classification** | [A] Domain dirs / [B] Flat / [C] Legacy — auto-detected |
-| **Complexity scoring** | Domains + file scale + dependencies + structure → SIMPLE / MEDIUM / COMPLEX |
+| **Task-based routing** | Small task (N_parallel < 3, N_files < 5) → single agent; larger → team |
+| **Context Map** | Pre-scans codebase with rg once, injects into all agent prompts. Agents skip re-exploration |
 | **Dynamic team composition** | 1–5 agents auto-determined with model routing |
 | **MECE ownership** | Each file belongs to exactly one agent. Boundary violations auto-reverted |
+| **Self-verify loop** | Agents autonomously retry 3× before escalating to Leader |
+| **Polling sync** | Tester agents poll for implementation files — no Leader message needed to start |
 | **Feedback loop** | Implement → Test → Fix → Retest — automatic |
-| **Circuit breaker** | 2 failures → debugger → still failing → user escalation |
+| **Circuit breaker** | 3 failures → debugger → still failing → user escalation |
 | **Worktree merge** | Per-agent isolated worktree + sequential merge + boundary check |
 
 ### v1.0: Run Artifacts + Learning
@@ -172,23 +175,23 @@ Claude Code Agent Teams are powerful, but manual setup requires many decisions �
 
 ```
 Step 0   Init                      Tool preload + cleanup + auto-detect stack/scale.
-Step 1   Project analysis          Tech stack + domain detection + structure type [A/B/C]
-Step 2   Complexity scoring        Auto-score → SIMPLE / MEDIUM / COMPLEX
-Step 3   Scope confirmation        IN/OUT/DEFER user check (MEDIUM+ only)
-Step 4   Planning                  Interview + Wave decomposition + criteria (COMPLEX only)
+Step 1   Project analysis          Tech stack + domains + structure type [A/B/C] + Context Map
+Step 2   Routing                   N_parallel / N_files → single agent (fast) OR team
+Step 3   Scope confirmation        IN/OUT/DEFER user check (team MEDIUM+ only)
+Step 4   Planning                  Interview + Wave decomposition + criteria (team COMPLEX only)
 Step 5   Team composition          Agent count + model + worktree mode
 Step 6   User confirmation         Final sign-off on team + plan
 Step 7   Spawn                     Preview check → experience brief → run init → create agents
 Step 8   Execution loop            State management → implement → test → merge → report
 ```
 
-### Complexity Paths
+### Routing Paths
 
-| Complexity | Score | Path | Approx. |
-|------------|-------|------|---------|
-| SIMPLE | 4–6 | 0→1→2→5→6→7→8 | ~1 min |
-| MEDIUM | 7–9 | + Step 3 (scope) | ~3 min |
-| COMPLEX | 10+ | + Step 3 + 4 (planning) | ~10 min |
+| Route | Condition | Approx. |
+|-------|-----------|---------|
+| Single agent | N_parallel < 3 AND N_files < 5 | seconds |
+| Team MEDIUM | N_parallel ≥ 3 or N_files ≥ 5 | ~3 min |
+| Team COMPLEX | Large scope / explicit plan / [C] structure | ~10 min |
 
 ### Model Routing
 

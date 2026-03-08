@@ -1,44 +1,99 @@
 # Team Orchestrator v1.0 — Technical Requirements Document
 
 > Implementation-level spec. Read PRD first for context.
-> TRD answers: "정확히 어떻게 만드는가"
+> TRD answers: "exactly how to build it"
 
 ---
 
 ## Project Boundary
 
-| Scope | Project 1 (this repo) | Project 2 (future) |
-|-------|----------------------|---------------------|
+| Scope | Project 1 (this repo) | Project 2 (separate repo) |
+|-------|----------------------|---------------------------|
 | Technology | Shell + SKILL.md (no servers, no DBs) | GraphDB + Vector DB + LLM API |
-| Memory | YAML files in `.claude/runs/` | Cross-run retrieval + embedding |
-| Anti-pattern | Per-run detection + logging | FP rate tracking + auto-retirement |
-| Skill lifecycle | None | Promotion, routing, retirement |
-| Learning | Human-reviewed verdict field | Automated utility scoring |
+| State | YAML files in `.claude/runs/` | Cross-run retrieval + embedding |
+| Patterns | Bottom-up from run data | Automated analysis + auto-retirement |
+| Learning | summary.yml (recent runs) | Full memory system |
+| Token tracking | Not available (Claude Code limitation) | Proxy-based measurement |
 
 ---
 
-## F1: Run Artifacts — Canonical Schemas
+## F1: Run Artifacts — Schemas
 
 ### Directory convention
 ```
 {project-root}/.claude/runs/{YYYY-MM-DD-NNN}/
 ├── plan.yml
+├── state.yml
 ├── events.yml
-├── report.yml
-└── decisions.yml
+└── report.yml
 ```
 
-`NNN` = zero-padded sequence per day (001, 002, ...). Leader creates dir at spawn time.
+`NNN` = zero-padded sequence per day (001, 002, ...).
+Leader creates dir at spawn time.
 `latest` symlink: `ln -sfn {run-id} .claude/runs/latest`
 
-### plan.yml (written once at spawn)
+### state.yml — atomic write protocol
+
+**CRITICAL**: Never write state.yml in-place. Always use atomic rename.
+
+```bash
+# Leader writes state.yml:
+cat > .claude/runs/${RUN_ID}/state.yml.tmp << 'EOF'
+... yaml content ...
+EOF
+sync .claude/runs/${RUN_ID}/state.yml.tmp
+mv .claude/runs/${RUN_ID}/state.yml.tmp .claude/runs/${RUN_ID}/state.yml
+```
+
+`state_version` field is monotonically incremented on each write.
+Agents can detect stale reads by checking version.
+
+### state.yml schema
+```yaml
+run_id: "2026-03-08-001"
+state_version: 14                  # monotonic counter
+phase: EXECUTING                    # PLANNING | EXECUTING | MERGING | COMPLETED | ABORTED
+updated_at: "2026-03-08T14:45:30Z"
+
+agents:
+  auth-be: WORKING                  # SPAWNED | WORKING | DONE | MERGED | CLEANED | FAILED
+  auth-fe: DONE
+  unit-tester: SPAWNED
+
+completed:
+  - "JWT middleware implementation"
+  - "Login page component"
+
+in_progress:
+  - agent: auth-be
+    task: "Token refresh logic"
+
+blocked:
+  - agent: unit-tester
+    waiting_for: auth-be
+    reason: "JWT module not ready"
+
+shared_contracts:
+  - "POST /api/auth/login → {token, refreshToken}"
+
+key_decisions:
+  - "Scope: auth only (no OAuth)"
+
+next:
+  - "auth-be token refresh"
+  - "unit-tester test start"
+
+scope_violations: 1
+```
+
+### plan.yml schema (written once at spawn)
 ```yaml
 run_id: "2026-03-08-001"
 timestamp: "2026-03-08T14:30:00Z"
 project: "/home/user/my-app"
 task: "Add JWT authentication"
-complexity: MEDIUM          # SIMPLE | MEDIUM | COMPLEX
-score: 8                    # 4-12
+complexity: MEDIUM                  # SIMPLE | MEDIUM | COMPLEX
+score: 8                            # 4-12
 
 team:
   - name: auth-be
@@ -57,44 +112,69 @@ ownership_manifest:
   shared_owner: leader
 ```
 
-### events.yml (append-only, flush immediately per event)
+### events.yml schema (append-only)
 ```yaml
 events:
-  - ts: "14:30:05"
-    type: agent_spawned        # agent_spawned | task_assigned | agent_done |
-    agent: auth-be             # scope_violation | anti_pattern | test_result |
-    model: sonnet              # escalation | debate_triggered | wave_complete
+  - seq: 1
+    ts: "14:30:05"
+    type: agent_spawned
+    agent: auth-be
+    model: sonnet
 
-  - ts: "14:46:00"
-    type: scope_violation
+  - seq: 2
+    ts: "14:30:06"
+    type: agent_spawned
+    agent: unit-tester
+    model: haiku
+
+  - seq: 3
+    ts: "14:32:10"
+    type: task_assigned
+    agent: auth-be
+    task: "Implement JWT middleware"
+
+  - seq: 4
+    ts: "14:35:00"
+    type: decision_promoted
+    detail: "POST /api/auth/login → {token, refreshToken}"
+
+  - seq: 5
+    ts: "14:45:30"
+    type: agent_done
+    agent: auth-be
+    status: DONE
+    files_changed: ["src/auth/jwt.ts", "src/middleware/auth.ts"]
+
+  - seq: 6
+    ts: "14:46:00"
+    type: scope_drift
     agent: auth-be
     file: "src/config/database.ts"
     action: reverted
 
-  - ts: "14:47:00"
-    type: anti_pattern
-    rule: AP007
-    agent: auth-be
-    severity: pause
-    detail: "Added .skip() to 2 test cases"
-    action: escalated_to_leader
-    verdict: null              # filled post-run: true_positive | false_positive | accepted_risk
-
-  - ts: "14:50:00"
+  - seq: 7
+    ts: "14:50:00"
     type: test_result
     agent: unit-tester
     target: auth-be
-    result: PASS               # PASS | FAIL
+    result: PASS
     retry: 0
 ```
 
-**Flush rule**: each event appended immediately (not batched). Enables future real-time UI via file watch.
+Event types:
+- Lifecycle: `agent_spawned`, `task_assigned`, `agent_done`, `wave_complete`
+- State: `decision_promoted`, `contract_published`, `blocked`, `unblocked`
+- Problems: `scope_drift`, `test_result` (FAIL), `escalation`
 
-### report.yml (written at completion)
+`seq` field: monotonic sequence number. Enables recovery ordering.
+
+Flush rule: each event appended immediately (not batched).
+
+### report.yml schema (written at completion)
 ```yaml
 run_id: "2026-03-08-001"
 duration_minutes: 28
-status: COMPLETED              # COMPLETED | FAILED | ABORTED
+status: COMPLETED                    # COMPLETED | FAILED | ABORTED
 
 agents:
   - name: auth-be
@@ -107,161 +187,111 @@ agents:
     tests_passed: 12
     tests_failed: 0
 
-scope_violations: 1
-anti_pattern_hits: 1
-debate_triggered: false
-escalations: 0
-
-confidence:
-  score: 82                    # 0-100
-  grade: B                     # A(90+) B(75+) C(60+) D(40+) F(<40)
-  breakdown:
-    scope_compliance: 95
-    test_evidence: 100
-    build_integrity: 100
-    retry_burden: 70
-    escalations: 100
-  flags:
-    - "auth-be: AP007 hit (test evasion) — verdict pending"
-  verdict: "Ship with review of auth-be changes"
+judgment:
+  success_rate: 1.0
+  retry_rate: 0.33
+  scope_violations: 1
+  escalations: 0
+  verdict: "Clean run. 1 scope drift (reverted)."
 ```
 
-### decisions.yml (written when decisions occur)
-```yaml
-decisions:
-  - ts: "14:35:00"
-    type: scope_lock           # scope_lock | scope_violation_revert | debate_result | escalation
-    detail: "IN: auth module. OUT: registration, OAuth."
+### Recovery spec
 
-  - ts: "14:46:00"
-    type: scope_violation_revert
+If state.yml is lost or corrupt:
+1. Read events.yml sequentially by `seq`
+2. Replay: agent_spawned → agents list, decision_promoted → shared_contracts, etc.
+3. Result: coarse last-known state (which agents existed, what decisions were made)
+
+**NOT recoverable**: exact in-flight tasks, SendMessage history, agent liveness.
+Documented as advisory — these fields are best-effort after recovery.
+
+---
+
+## F3: Experience Brief — Data Source
+
+### Commands (run at spawn time)
+```bash
+# Check if summary.yml exists
+test -f .claude/runs/summary.yml
+
+# If exists, read patterns section
+# Leader includes relevant patterns in spawn briefing
+```
+
+No git analysis. No external API. Just read summary.yml.
+
+### Output format (shown to user at spawn)
+```
+Experience brief (from recent runs):
+  Patterns:
+    - auth-be: scope drift on database.ts (3 occurrences) → excluding from scope
+    - Best team for MEDIUM: sonnet:2 + haiku:1 (85% success)
+  Stats:
+    - Average duration: 22 min
+    - Average success rate: 82%
+```
+
+---
+
+## F5: Pattern Detection — Summary Generation
+
+### When to generate
+After every run completion (before archival), Leader:
+1. Reads current summary.yml (if exists)
+2. Reads current run's events.yml and report.yml
+3. Extracts notable events (scope_drift, high retries, failures)
+4. Updates pattern counts
+5. Writes new summary.yml
+
+### summary.yml schema
+```yaml
+project: "/home/user/my-app"
+runs_analyzed: 10
+last_updated: "2026-03-10"
+
+patterns:
+  - type: scope_drift
     agent: auth-be
     file: "src/config/database.ts"
-    reason: "Outside owned scope"
+    occurrences: 3
+    first_seen: "2026-03-08-001"
+    last_seen: "2026-03-10-002"
+    action: warn_on_spawn          # shown in F3/F4
+
+  - type: retry_heavy
+    agent: unit-tester
+    avg_retries: 2.3
+    occurrences: 4
+    action: note                    # logged, not warned
+
+  - type: team_success
+    config: "sonnet:2 + haiku:1"
+    complexity: MEDIUM
+    success_rate: 0.85
+    occurrences: 6
+    action: recommend               # suggested in F3/F4
+
+stats:
+  avg_duration_min: 22
+  avg_success_rate: 0.82
+  avg_retries: 1.2
+  most_common_team: "sonnet:2 + haiku:1"
 ```
 
----
-
-## F2: Confidence Scoring — Algorithm
-
-### Weights
-| Check | Weight | Max score |
-|-------|--------|-----------|
-| scope_compliance | 0.30 | 30 |
-| test_evidence | 0.25 | 25 |
-| build_integrity | 0.25 | 25 |
-| retry_burden | 0.12 | 12 |
-| escalations | 0.08 | 8 |
-
-### Formulas
-
-**scope_compliance** (0-100):
+### Pattern promotion rules
 ```
-violations = count(events where type=scope_violation)
-score = max(0, 100 - violations * 20)
+Occurrence 1:     logged in events.yml only
+Occurrence 2:     added to summary.yml patterns (action: note)
+Occurrence 3+:    action: warn_on_spawn (shown in F3 brief + F4 preview)
 ```
 
-**test_evidence** (0-100):
-```
-tasks_with_accepts = count(tasks that have accepts criteria)
-tasks_with_pass = count(tasks where test_result.result=PASS exists)
-score = (tasks_with_pass / tasks_with_accepts) * 100   # 0 if no tasks
-```
+No pre-defined pattern IDs. No hard-coded detection.
+Leader naturally identifies repeated problems from events.yml data.
 
-**build_integrity** (0-100):
-```
-score = 100 if post-merge build passed, else 0
-```
-
-**retry_burden** (0-100):
-```
-total_retries = sum(agent.retries for all agents)
-score = max(0, 100 - total_retries * 15)
-```
-
-**escalations** (0-100):
-```
-score = max(0, 100 - escalations * 25)
-```
-
-**Final score**:
-```
-weighted_sum = Σ(check_score * weight)
-anti_pattern_penalty = count(anti_pattern events where severity=block) * 5
-                     + count(anti_pattern events where severity=pause) * 2
-final_score = max(0, weighted_sum - anti_pattern_penalty)
-```
-
-**Grade boundaries**: A≥90, B≥75, C≥60, D≥40, F<40
-
----
-
-## F3: Impact & Risk Brief — Git Analysis
-
-### Commands (run before spawn)
-```bash
-# Changed files in last PR/branch
-git diff --name-only main
-
-# File hotspots (contributors in 30 days)
-git log --since="30 days ago" --format="%H" -- {file} | wc -l
-
-# Recent failures on file (from events.yml history)
-grep -r "scope_violation\|anti_pattern" .claude/runs/*/events.yml | grep {file}
-
-# Import depth (how many files import this file)
-grep -r "import.*{module}" src/ | wc -l
-```
-
-### Output format
-```
-Impact & Risk Brief:
-  Impacted modules: src/auth/**, src/middleware/**
-  Likely test areas: tests/auth/**, tests/e2e/login.spec.ts
-  Risk factors:
-    - src/middleware/auth.ts: 8 contributors in 30 days (hotspot)
-    - tests/auth/ had 2 scope_violations in recent runs
-  Recommended team: 2 sonnet (be + fe) + 1 haiku (tester)
-  Estimated scope: ~150 LOC across 6 files
-  Risk level: MEDIUM
-```
-
----
-
-## F5: Anti-Pattern Detection — Shell Specs
-
-### Detection commands per AP rule
-
-```bash
-# AP001: Out-of-scope edit
-git -C "$wt" diff --name-only "$base" | grep -vE "$owned_pattern"
-
-# AP002: Shared file touched without decisions.yml entry
-shared_files=("src/types/" "prisma/schema" "openapi/")
-git -C "$wt" diff --name-only "$base" | grep -E "$(IFS='|'; echo "${shared_files[*]}")"
-# → check if matching entry exists in decisions.yml
-
-# AP003: Role leakage (tester/read-only agent edits files)
-# check agent role from plan.yml, then:
-git -C "$wt" diff --name-only "$base" | wc -l  # > 0 for read-only = violation
-
-# AP005: Done without evidence
-# check events.yml for PASS event matching task accepts criteria
-
-# AP007: Test evasion
-git -C "$wt" diff -U0 "$base" | grep -E '^\+.*(\.skip\(|describe\.only\(|xdescribe\(|eslint-disable|@ts-ignore|\|\| true)'
-
-# AP008: Stale merge (agent behind leader)
-git merge-base --is-ancestor "$agent_head" "$leader_head"
-```
-
-### Hook points
-| Hook | Checks run |
-|------|-----------|
-| on_checkpoint (30-60s in worktree) | AP001, AP002, AP007 |
-| on_agent_done | AP001, AP002, AP003, AP005, AP007 |
-| on_test_result | AP006 |
-| pre_merge | AP001, AP002, AP005, AP008 |
+### summary.yml scope
+- Covers last 10 runs (sliding window)
+- Old patterns that don't recur naturally age out
+- Kept per-project (not global — global is P2)
 
 ---
 
@@ -297,24 +327,54 @@ Settings patch: read `~/.claude/settings.json` → merge required keys → backu
 
 ---
 
-## Worktree Gap Fixes (Wave 1C)
+## Communication Protocol
 
-Three gaps in current spawn-team/SKILL.md:
-
-### Gap 1: §7-1 — Add `isolation: "worktree"` to Agent spawn
-Current §7-1 template lacks `isolation: "worktree"` when 3+ agents.
-Fix: add conditional in spawn template.
-
-### Gap 2: §8-4 — Merge mechanics
-Add explicit merge sequence:
+### Layers
 ```
-For each agent branch (in merge order):
-  1. git fetch worktree branch
-  2. git merge --no-ff {branch} -m "merge: {agent} work"
-  3. resolve conflicts (AskUserQuestion if same file)
-  4. run build check
-  5. git worktree remove {wt-path}  # cleanup
+Layer 1: SendMessage (tmux)
+  - Best-effort, ephemeral
+  - Can be lost or reordered
+  - Use for: real-time coordination, status updates, quick questions
+  - NOT authoritative
+
+Layer 2: state.yml
+  - Leader-managed, persistent
+  - Atomic writes only
+  - Use for: current state, decisions, contracts, blockers
+  - Authoritative for "what is the current situation"
+
+Layer 3: events.yml
+  - Append-only, immutable
+  - Use for: audit trail, recovery, post-run analysis
+  - Authoritative for "what happened"
 ```
 
-### Gap 3: §8-5 — Worktree cleanup
-After all merges complete: `git worktree prune` + remove stale branches.
+### Decision promotion flow
+```
+Agent A → SendMessage → Leader: "Let's use bcrypt"
+Agent B → SendMessage → Leader: "Agreed"
+Leader → state.yml: shared_contracts += "bcrypt for hashing"
+Leader → events.yml: { type: decision_promoted, detail: "bcrypt for hashing" }
+```
+
+### Agent checkpoint flow
+```
+Agent reads state.yml:
+  - "What phase are we in?"
+  - "Am I blocked?"
+  - "Any new shared contracts I should know about?"
+  - "Any scope drift warnings?"
+Agent does NOT read events.yml.
+```
+
+---
+
+## Constraints
+
+| Constraint | Value | Reason |
+|-----------|-------|--------|
+| Max agents | 5 | Leader bottleneck above this |
+| state.yml write | atomic rename only | Prevent partial reads |
+| events.yml | append-only | Auditability + recovery |
+| Token tracking | NOT available in P1 | Claude Code doesn't expose tokens |
+| DB | NOT used in P1 | Filesystem only, DB is P2 |

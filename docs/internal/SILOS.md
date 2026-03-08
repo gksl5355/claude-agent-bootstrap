@@ -1,410 +1,251 @@
 # Team Orchestrator v1.0 — Silo Implementation Spec
 
-> 각 Claude Code 세션이 독립적으로 구현할 수 있도록 세션별 완전 스펙을 정의.
-> 세션 간 파일 충돌 없음이 보장되어야 한다.
+> Each Claude Code session implements independently.
+> No file conflicts between sessions guaranteed.
 
-## 구현 시작 전 필독 순서
+## Pre-read order
 
-1. `docs/internal/PRD.md` — 기능 정의 + 요구사항 (What)
-2. `docs/internal/TRD.md` — 스키마 + 알고리즘 + 셸 명령 (How)
-3. 이 파일(SILOS.md) — 담당 Silo 섹션 (Who/When/Which files)
-
-각 Silo 섹션의 "TRD.md §Fx 참조"는 TRD에서 해당 섹션을 읽으라는 의미.
+1. `docs/internal/PRD.md` — What (features, requirements)
+2. `docs/internal/TRD.md` — How (schemas, algorithms, protocols)
+3. This file (SILOS.md) — Who/When/Which files
 
 ---
 
-## 전체 세션 맵
+## Session Map
 
 ```
-Wave 1 (병렬 실행 가능)
-  Session A ─── Silo 1A: F1 Run Artifacts (spawn-team/SKILL.md)
-              ── Silo 1C: Worktree gaps (spawn-team/SKILL.md, 1A 완료 후)
-  Session B ─── Silo 1B: F6 Doctor (doctor/SKILL.md, 신규)
+Wave 1 (parallel)
+  Session A ─── Silo 1A: F1 Run Artifacts + State + Lifecycle
+                         (spawn-team/SKILL.md)
+  Session B ─── Silo 1B: F6 Doctor
+                         (doctor/SKILL.md, new file)
 
-Wave 2 (Wave 1 완료 후, 병렬 실행 가능)
-  Session C ─── Silo 2A: F3 Impact Brief (spawn-team/SKILL.md)
-              ── Silo 2B: F2 Confidence (spawn-team/SKILL.md, 2A 완료 후)
-              ── Silo 2C: F5 Ownership + AP (spawn-team/SKILL.md, 2B 완료 후)
-  Session D ─── Silo 2D: Tests F2/F3/F5 (tests/integration/, 독립)
+Wave 2 (Wave 1 complete, sequential on SKILL.md)
+  Session C ─── Silo 2A: F5 Pattern Detection + summary.yml
+              ── Silo 2B: F3 Experience Brief (after 2A)
+              ── Silo 2C: F4 Preview Mode (after 2B)
+                         (all in spawn-team/SKILL.md)
 
-Wave 3 (Wave 2 완료 후, 병렬 실행 가능)
-  Session E ─── Silo 3A: F4 Preview (spawn-team/SKILL.md)
-              ── Silo 3B: F7 Debate gate (debate/SKILL.md + spawn-team, 3A 완료 후)
-  Session F ─── Silo 3C: F8 Ralph + E2E (ralph/SKILL.md + tests/fixtures/, 독립)
-  Session G ─── Silo 3D: Docs cleanup (docs/, README.md, 독립)
+Wave 3 (Wave 2 complete, parallel)
+  Session D ─── Silo 3A: Docs + README
+  Session E ─── Silo 3B: F2-external benchmark (one-off)
 ```
 
-**파일 소유권 원칙:**
-- `spawn-team/SKILL.md` → 한 번에 하나의 세션만. Wave 내에서도 순차.
-- `doctor/SKILL.md` → Session B 독점
-- `debate/SKILL.md` → Session E (Silo 3B) 독점
-- `ralph/SKILL.md` → Session F 독점
-- `tests/` → Session D (integration/) + Session F (fixtures/) — 다른 하위 디렉터리
+### File ownership
+
+```
+spawn-team/SKILL.md  →  Session A (Wave 1) → Session C (Wave 2)
+                         ONE writer at a time. Never concurrent.
+doctor/SKILL.md      →  Session B only
+docs/                →  Session D only
+benchmarks/          →  Session E only
+```
 
 ---
 
 ## Wave 1
 
----
+### Silo 1A — F1: Run Artifacts + State + Lifecycle
+**Session**: A
+**Feature**: F1
 
-### Silo 1A — F1: Run Artifacts
-**Session**: A (Wave 1, 첫 번째)
-**담당 기능**: F1 (plan.yml / events.yml / report.yml / decisions.yml)
+#### Files
+| Action | File |
+|--------|------|
+| **Modify** | `.claude/skills/spawn-team/SKILL.md` — §7 (Spawn) + §8 (Execution) + §8.5 (Completion) |
+| **Forbidden** | All other files |
 
-#### 파일
-| 작업 | 파일 |
-|------|------|
-| **수정** | `.claude/skills/spawn-team/SKILL.md` — §7 (Spawn Team) + §8 (Execution) + §8.5 (Completion) |
-| **생성** | 없음 (YAML은 실행 시 생성, 스키마는 SKILL.md에 명시) |
-| **금지** | 다른 모든 파일 |
+#### SKILL.md changes
 
-#### SKILL.md 수정 범위
-- **§7-1 (Spawn Team)**: plan.yml 작성 로직 추가
-  - run_id 생성 (`date +%Y-%m-%d`-NNN)
-  - `.claude/runs/{run-id}/` 디렉터리 생성
-  - plan.yml 작성 (team, ownership_manifest, complexity, score)
-  - `latest` symlink 업데이트
-- **§8-1 (Task Distribution)**: events.yml에 `task_assigned` 이벤트 추가
-- **§8-2 (Progress Updates)**: events.yml에 `agent_done`, `wave_complete` 이벤트 추가
-- **§8-3 (Test Loop)**: events.yml에 `test_result` 이벤트 추가
-- **§8.5 (Completion)**: report.yml 작성 로직 추가 (F2 confidence 블록 제외 — Silo 2B 담당)
-- **decisions.yml**: scope_lock, scope_violation_revert 이벤트 작성 위치 명시
+**§7 (Spawn Team)** — add:
+- Run directory creation: `.claude/runs/{YYYY-MM-DD-NNN}/`
+- plan.yml writing (team, ownership_manifest, complexity, score)
+- state.yml initialization (phase: PLANNING, state_version: 1)
+- `latest` symlink update
 
-#### 수용 기준 (Acceptance)
+**§8 (Execution)** — add:
+- state.yml atomic write protocol (tmp + sync + mv)
+- events.yml append on every event (with seq counter)
+- Event types: agent_spawned, task_assigned, agent_done, decision_promoted, contract_published, scope_drift, blocked, unblocked, test_result
+- Communication protocol: SendMessage = hint, state.yml = authority
+- Agent reads state.yml only (never events.yml)
+
+**§8.5 (Completion)** — add:
+- report.yml writing (judgment: success_rate, retry_rate, violations, verdict)
+- Lifecycle cleanup (worktree delete, tmux kill, state.yml freeze)
+- Run archival (>7d → archive/)
+
+#### Acceptance
 ```bash
-# 1. spawn 후 plan.yml 존재
-ls {project}/.claude/runs/$(date +%Y-%m-%d)-001/plan.yml
+# 1. plan.yml exists after spawn
+test -f .claude/runs/$(date +%Y-%m-%d)-001/plan.yml
 
-# 2. plan.yml에 필수 키 존재
-grep -E "run_id|team|ownership_manifest|complexity" plan.yml
+# 2. state.yml has required fields
+grep -E "state_version|phase|agents" state.yml
 
-# 3. events.yml이 agent_done 시점에 업데이트됨
-grep "agent_done" events.yml
+# 3. events.yml has seq numbers
+grep "seq:" events.yml
 
-# 4. report.yml이 completion 시 생성됨 (confidence 블록 없어도 OK)
-grep "status: COMPLETED" report.yml
+# 4. report.yml has judgment
+grep "success_rate" report.yml
+
+# 5. Atomic write (state.yml.tmp should NOT exist after write)
+test ! -f state.yml.tmp
 ```
-
-#### 팀 스폰 구성
-```
-spawn-writer-spawn (sonnet)  — §7 (plan.yml 작성 로직)
-spawn-writer-exec  (sonnet)  — §8 + §8.5 (events/report 작성 로직)
-spawn-tester       (haiku)   — 수용 기준 검증 (grep으로 확인)
-```
-→ §7와 §8+§8.5는 다른 섹션이므로 **worktree 격리 후 병렬 작성 가능**.
-→ 머지 순서: spawn-writer-spawn 먼저, 이후 spawn-writer-exec.
 
 ---
 
 ### Silo 1B — F6: Doctor
-**Session**: B (Wave 1, Session A와 병렬)
-**담당 기능**: F6 (/doctor command)
+**Session**: B (parallel with A)
+**Feature**: F6
 
-#### 파일
-| 작업 | 파일 |
-|------|------|
-| **생성** | `.claude/skills/doctor/SKILL.md` (신규) |
-| **금지** | 다른 모든 파일 |
+#### Files
+| Action | File |
+|--------|------|
+| **Create** | `.claude/skills/doctor/SKILL.md` (new) |
+| **Forbidden** | All other files |
 
-#### SKILL.md 내용 (신규 파일)
-`/doctor` 스킬이 해야 할 것:
-1. 환경 체크 8개 항목 (TRD.md §F6 참조)
-2. 결과 출력 (`✓` / `✗` + 이유)
-3. settings.json 패치 제안 → `y/n` 확인 후 적용
-4. 패치 전 백업: `~/.claude/settings.json.bak`
-5. 패치 실패 시 백업에서 복구
+#### Content
+- 8 environment checks (TRD §F6)
+- Result output (✓/✗ + reason)
+- Settings patch proposal → y/n → apply
+- Backup before patch: `~/.claude/settings.json.bak`
 
-#### 수용 기준
+#### Acceptance
 ```bash
-# /doctor 실행 시 출력에 다음 포함 여부
+# /doctor output includes check results
 # ✓ Claude Code
 # ✓ tmux
 # ✓ CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS
-# ✓ CLAUDE_CODE_TEAMMATE_COMMAND
-# ✗ 또는 ✓ Codex CLI
 ```
-
-#### 팀 스폰 구성
-파일 1개 → 단일 에이전트로 충분.
-```
-doctor-writer (sonnet) — SKILL.md 전체 작성 + 자체 검증
-```
-
----
-
-### Silo 1C — Worktree Gap Fix
-**Session**: A (Wave 1, Silo 1A 완료 후)
-**담당 기능**: spawn-team/SKILL.md worktree 3개 갭 수정
-
-#### 파일
-| 작업 | 파일 |
-|------|------|
-| **수정** | `.claude/skills/spawn-team/SKILL.md` — §7-1, §8-4, §8-5 |
-| **금지** | 다른 모든 파일 |
-
-#### 수정 내용 (TRD.md §Worktree Gap Fixes 참조)
-- §7-1: `isolation: "worktree"` 조건부 추가 (3+ agents)
-- §8-4: 머지 순서 + git 명령 명시
-- §8-5: `git worktree prune` + stale branch 정리
-
-#### 수용 기준
-- §7-1에 worktree 조건 분기 존재
-- §8-4에 명시적 git merge 순서 존재
-- §8-5에 cleanup 단계 존재
 
 ---
 
 ## Wave 2
 
----
+### Silo 2A — F5: Pattern Detection
+**Session**: C (Wave 2, first)
+**Prerequisite**: Wave 1 complete
 
-### Silo 2A — F3: Impact & Risk Brief
-**Session**: C (Wave 2, 첫 번째)
-**전제조건**: Wave 1 완료
+#### Files
+| Action | File |
+|--------|------|
+| **Modify** | `.claude/skills/spawn-team/SKILL.md` — §8.5 (Completion) enhancement |
+| **Forbidden** | All other files |
 
-#### 파일
-| 작업 | 파일 |
-|------|------|
-| **수정** | `.claude/skills/spawn-team/SKILL.md` — §1 (Project Analysis) 신규 서브섹션 |
-| **금지** | 다른 모든 파일 |
+#### SKILL.md changes
 
-#### SKILL.md 수정 범위
-§1에 새 서브섹션 `1-4. Impact & Risk Brief` 추가:
-- git analysis 명령 (TRD.md §F3 참조)
-- 출력 포맷 (Impacted modules / Risk factors / Recommended team / Risk level)
-- SIMPLE complexity → brief 스킵, MEDIUM/COMPLEX → 출력
+**§8.5 (Completion)** — add after report.yml:
+- Read current summary.yml (if exists)
+- Extract patterns from this run's events.yml + report.yml
+- Update pattern counts (scope_drift, retry_heavy, team_success)
+- Apply promotion rules (1→note, 2→note, 3+→warn_on_spawn)
+- Write updated summary.yml
 
-#### 수용 기준
+#### Acceptance
 ```bash
-# MEDIUM/COMPLEX 작업 시 다음 출력 포함 여부
-# "Impact & Risk Brief:"
-# "Impacted modules:"
-# "Risk factors:"
-# "Risk level: MEDIUM|HIGH"
-```
+# summary.yml exists after run completion
+test -f .claude/runs/summary.yml
 
----
+# Contains patterns section
+grep "patterns:" summary.yml
 
-### Silo 2B — F2: Confidence Scoring
-**Session**: C (Wave 2, Silo 2A 완료 후)
-**전제조건**: Silo 2A 완료 (§8.5에 report.yml 기본 구조 있어야 함)
-
-#### 파일
-| 작업 | 파일 |
-|------|------|
-| **수정** | `.claude/skills/spawn-team/SKILL.md` — §8.5 (Completion) confidence 블록 추가 |
-| **금지** | 다른 모든 파일 |
-
-#### SKILL.md 수정 범위
-§8.5에 confidence 계산 로직 추가:
-- 5개 check 계산 (TRD.md §F2 참조)
-- anti_pattern_penalty 계산
-- grade 판정 (A/B/C/D/F)
-- report.yml confidence 블록 작성
-
-#### 수용 기준
-```bash
-# report.yml에 confidence 블록 존재
-grep -E "score:|grade:|breakdown:" report.yml
+# Contains stats section
+grep "avg_success_rate" summary.yml
 ```
 
 ---
 
-### Silo 2C — F5: Ownership Enforcement + Anti-Pattern
-**Session**: C (Wave 2, Silo 2B 완료 후)
+### Silo 2B — F3: Experience Brief
+**Session**: C (after 2A)
 
-#### 파일
-| 작업 | 파일 |
-|------|------|
-| **수정** | `.claude/skills/spawn-team/SKILL.md` — §8-4 (Merge Protocol) 강화 |
-| **금지** | 다른 모든 파일 |
+#### SKILL.md changes
 
-#### SKILL.md 수정 범위
-§8-4에 추가:
-- AP001-AP008 탐지 명령 (TRD.md §F5 참조)
-- hook point별 실행 시점
-- anti_pattern 이벤트 events.yml 기록
-- verdict: null 필드 추가
+**§7 (Spawn Team)** — add before team proposal:
+- Check if summary.yml exists
+- If yes, read patterns with action: warn_on_spawn or recommend
+- Include in spawn briefing to user
+- Use for team composition recommendations
 
-#### 수용 기준
+#### Acceptance
 ```bash
-# test evasion (AP007) 탐지
-echo "test.skip('foo', () => {})" >> tests/foo.test.ts
-# → events.yml에 anti_pattern AP007 기록되어야 함
-
-# scope violation (AP001) 탐지
-# → 소유권 밖 파일 수정 시 events.yml에 scope_violation 기록
+# When summary.yml exists with patterns, spawn shows brief
+# "Experience brief: ..."
+# "Pattern: auth-be scope drift on database.ts (3x)"
 ```
 
 ---
 
-### Silo 2D — Integration Tests (F2/F3/F5)
-**Session**: D (Wave 2, Session C와 병렬)
+### Silo 2C — F4: Preview Mode
+**Session**: C (after 2B)
 
-#### 파일
-| 작업 | 파일 |
-|------|------|
-| **생성** | `tests/integration/test-confidence-scoring.sh` |
-| **생성** | `tests/integration/test-ownership-guard.sh` |
-| **생성** | `tests/integration/test-impact-brief.sh` |
-| **금지** | `tests/unit/`, `tests/fixtures/`, 다른 모든 파일 |
+#### SKILL.md changes
 
-#### 팀 스폰 구성
-테스트 파일 3개 완전 독립 → **3개 병렬 작성 최적**.
-```
-test-writer-confidence (haiku) — test-confidence-scoring.sh
-test-writer-ownership  (haiku) — test-ownership-guard.sh
-test-writer-impact     (haiku) — test-impact-brief.sh
-```
-→ 3개 동시 작성. 머지 순서 무관 (파일 겹침 없음).
+**§7 (Spawn Team)** — add at entry:
+- Detect `--preview` flag
+- Run plan generation + experience brief
+- Output preview (team, ownership, complexity, experience)
+- Do NOT create run directory or spawn agents
+- Ask user: proceed / adjust / cancel
 
-#### 수용 기준
+#### Acceptance
 ```bash
-bash tests/integration/test-confidence-scoring.sh  # exit 0
-bash tests/integration/test-ownership-guard.sh     # exit 0
-bash tests/integration/test-impact-brief.sh        # exit 0
+# --preview shows plan without spawning
+# No .claude/runs/ directory created
+# No tmux sessions created
 ```
 
 ---
 
 ## Wave 3
 
+### Silo 3A — Docs + README
+**Session**: D (parallel)
+
+#### Files
+| Action | File |
+|--------|------|
+| **Modify** | `README.md`, `README.ko.md` |
+| **Create** | `docs/getting-started.md` |
+| **Create** | `docs/guide/spawn-team.md` |
+| **Create** | `docs/guide/doctor.md` |
+| **Forbidden** | `.claude/skills/`, `tests/`, `install.sh` |
+
 ---
 
-### Silo 3A — F4: Preview Mode
-**Session**: E (Wave 3, 첫 번째)
-**전제조건**: Wave 2 완료
+### Silo 3B — F2-external Benchmark
+**Session**: E (parallel, independent)
 
-#### 파일
-| 작업 | 파일 |
-|------|------|
-| **수정** | `.claude/skills/spawn-team/SKILL.md` — §0 (Init) 앞에 --preview gate 추가 |
-| **금지** | 다른 모든 파일 |
+#### Files
+| Action | File |
+|--------|------|
+| **Create** | `.claude/runs/benchmarks/` directory + results |
+| **Create** | Benchmark script or skill (TBD) |
+| **Forbidden** | `.claude/skills/spawn-team/`, docs/ |
 
-#### SKILL.md 수정 범위
-`/spawn-team --preview "task"` 진입 시:
-1. F3 Impact Brief 실행
-2. plan.yml 생성 (dry-run, 실제 `.claude/runs/`에는 쓰지 않음 또는 preview/ 서브디렉터리)
-3. 팀 구성 제안 출력
-4. "Proceed? [y/n/adjust]" → y면 실제 spawn, n이면 중단
+#### Scope
+- Select 3-5 public repos with reproducible issues
+- Run each: single agent vs spawn-team
+- Record: pass/fail, retries, wall_clock
+- Generate comparison.yml
 
-#### 수용 기준
+---
+
+## Session Start Checklist
+
+Before each session:
 ```bash
-# --preview 실행 시 에이전트 스폰 없이 출력만
-/spawn-team --preview "Add login page"
-# → "=== PREVIEW ===" 포함 출력
-# → 실제 tmux 세션 생성 없음
-```
+# 1. Current branch state
+git status && git log --oneline -5
 
----
-
-### Silo 3B — F7: Debate Gate
-**Session**: E (Wave 3, Silo 3A 완료 후)
-
-#### 파일
-| 작업 | 파일 |
-|------|------|
-| **수정** | `.claude/skills/debate/SKILL.md` — decisions.yml 기록 추가 |
-| **수정** | `.claude/skills/spawn-team/SKILL.md` — §7 pre-spawn gate 추가 |
-| **금지** | 다른 모든 파일 |
-
-#### 수정 범위
-- debate/SKILL.md: 토론 결과를 decisions.yml에 기록하는 단계 추가
-- spawn-team/SKILL.md §7: F3 risk level HIGH 또는 auth/schema/API 변경 감지 시 자동 debate 진입
-
-#### 수용 기준
-- Risk level HIGH 작업 → debate 자동 제안
-- debate 결과 → decisions.yml에 `debate_result` 타입 엔트리 생성
-
----
-
-### Silo 3C — F8: Ralph + E2E Fixtures
-**Session**: F (Wave 3, Session E와 병렬)
-
-#### 파일
-| 작업 | 파일 |
-|------|------|
-| **수정** | `.claude/skills/ralph/SKILL.md` — prd.json 내구성 강화 |
-| **생성** | `tests/fixtures/simple-app/` (5-7 files skeleton) |
-| **생성** | `tests/fixtures/medium-app/` (10-12 files skeleton) |
-| **생성** | `tests/fixtures/complex-app/` (15-18 files skeleton) |
-| **금지** | `tests/integration/`, `tests/unit/`, 다른 모든 파일 |
-
-#### Fixture 요구사항
-각 fixture app:
-- `package.json` 또는 해당 스택 manifest
-- `src/` 디렉터리 구조
-- 기본 테스트 파일
-- SIMPLE/MEDIUM/COMPLEX 복잡도를 유발하는 도메인 수 반영
-
-#### 팀 스폰 구성
-ralph + fixture 3개 = 4개 독립 작업 → **최대 병렬**.
-```
-ralph-writer     (sonnet) — ralph/SKILL.md 수정
-fixture-simple   (haiku)  — tests/fixtures/simple-app/ 생성
-fixture-medium   (haiku)  — tests/fixtures/medium-app/ 생성
-fixture-complex  (sonnet) — tests/fixtures/complex-app/ 생성
-```
-→ 4개 동시 작업. 파일 겹침 없음.
-
-#### 수용 기준
-```bash
-# 각 fixture에서 spawn-team 실행 후
-# .claude/runs/{id}/plan.yml 생성 확인
-# complexity가 예상 레벨로 감지되는지 확인
-```
-
----
-
-### Silo 3D — Docs Cleanup
-**Session**: G (Wave 3, 독립)
-
-#### 파일
-| 작업 | 파일 |
-|------|------|
-| **생성** | `docs/getting-started.md` |
-| **생성** | `docs/guide/spawn-team.md` |
-| **생성** | `docs/guide/debate.md` |
-| **생성** | `docs/guide/doctor.md` |
-| **수정** | `README.md` — v1.0 기능 반영 |
-| **수정** | `README.ko.md` — v1.0 기능 반영 |
-| **이동** | `docs/CONFIGURATION.md` → `docs/guide/configuration.md` |
-| **이동** | `docs/WORKFLOW.md` → `docs/guide/workflow.md` |
-| **금지** | `.claude/skills/`, `tests/`, `install.sh` |
-
-#### 팀 스폰 구성
-문서 파일 다수 독립 → **최대 병렬**.
-```
-docs-getting-started (sonnet) — docs/getting-started.md + 이동 작업
-docs-guide-spawn     (haiku)  — docs/guide/spawn-team.md
-docs-guide-skills    (haiku)  — docs/guide/debate.md + doctor.md
-docs-readme          (sonnet) — README.md + README.ko.md (영/한 동시)
-```
-→ 4개 동시. 파일 겹침 없음.
-
-#### 수용 기준
-- README.md에 v1.0 features 섹션 (confidence harness, doctor, preview) 존재
-- `docs/getting-started.md`에 설치 + 퀵스타트 포함
-
----
-
-## 세션 시작 체크리스트
-
-각 세션 시작 전 확인:
-```bash
-# 1. 현재 branch 상태
-git status
-git log --oneline -5
-
-# 2. 내 silo 파일 이외 변경 없음 확인
+# 2. No changes outside my silo
 git diff --name-only HEAD
 
-# 3. 의존 silo 완료 여부 (Wave 2+ 경우)
-# Wave 2 세션: Wave 1 커밋 확인
+# 3. Dependency silo complete (Wave 2+)
 git log --oneline | grep "silo-1"
 ```
 
-각 silo 완료 후:
+After each silo:
 ```bash
 git add {silo-specific-files-only}
 git commit -m "feat: silo {ID} — {feature name}"
@@ -412,14 +253,15 @@ git commit -m "feat: silo {ID} — {feature name}"
 
 ---
 
-## P1 / P2 경계 — 세션이 넘지 말아야 할 선
+## P1 / P2 Boundary
 
-| 구현하지 말 것 | 이유 |
-|----------------|------|
-| Vector embedding / semantic search | Project 2 |
-| Cross-run FP rate 자동 분석 | Project 2 |
-| Skill lifecycle (promotion, retirement) | Project 2 |
-| GraphDB 연동 | Project 2 |
-| LLM API 직접 호출 (Claude API 외) | Project 2 |
-| 새로운 서버/데몬/백그라운드 프로세스 | 아키텍처 원칙 위반 |
-| npm/pip 패키지 의존성 추가 | 아키텍처 원칙 위반 |
+| Do NOT implement | Reason |
+|-----------------|--------|
+| GraphDB, Vector DB, embeddings | P2 scope |
+| Cross-project pattern analysis | P2 scope (global) |
+| Token tracking infrastructure | P2 scope (proxy needed) |
+| Skill lifecycle management | P2 scope |
+| Dashboard UI | P2 scope |
+| New servers, daemons, background processes | Architecture violation |
+| npm/pip package dependencies | Architecture violation |
+| Pre-defined anti-pattern rules (AP001-AP008) | Replaced by bottom-up detection |

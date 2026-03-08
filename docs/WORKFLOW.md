@@ -1,261 +1,228 @@
 # Workflow Guide
 
-Team Orchestrator의 전체 실행 흐름을 단계별로 설명한다.
+Step-by-step execution flow for Team Orchestrator.
 
 ---
 
-## 전체 플로우 다이어그램
+## Full Flow Diagram
 
 ```
-사용자: /spawn-team
-          │
-          ▼
-    ┌─ Step 0: 의도 분류 ──────────────────┐
-    │  모호? → 1-2개 질문                    │
-    │  명확? → 바로 통과                     │
-    └──────────────────────────────────────┘
-          │
-          ▼
-    ┌─ Step 1: 프로젝트 분석 ──────────────┐
-    │  1-1. 기술 스택 감지 (동시)           │
-    │  1-2. 도메인 감지 + 구조 타입 (동시)  │
-    │  1-3. 소유권 매니페스트 생성          │
-    └──────────────────────────────────────┘
-          │
-          ▼
-    ┌─ Step 2: 팀 구성 제안 ───────────────┐
-    │  에이전트 수 결정 (1~5명)             │
-    │  모델 라우팅 (Haiku/Sonnet/Codex)    │
-    │  워크트리 모드 (shared/isolated)      │
-    └──────────────────────────────────────┘
-          │
-          ▼
-    ┌─ Step 2B: 복잡도 판단 (자동) ────────┐
-    │  점수 4-6  → SIMPLE                   │
-    │  점수 7-9  → MEDIUM                   │
-    │  점수 10-11 → COMPLEX                 │
-    └──────────────────────────────────────┘
-          │
-    ┌─────┼─────────────┐
-    │     │             │
-  SIMPLE  MEDIUM     COMPLEX
-    │     │             │
-    │     ▼             ▼
-    │  Step 2.5      Step 2.5
-    │  범위 확인     범위 확인
-    │     │             │
-    │     │             ▼
-    │     │          Step 3
-    │     │          계획 수립
-    │     │          (인터뷰 + Wave)
-    │     │             │
-    └─────┴─────────────┘
-          │
-          ▼
-    ┌─ Step 4: 사용자 확인 ────────────────┐
-    │  팀 구성 + (계획) 승인                │
-    │  Codex 활성화 여부                    │
-    └──────────────────────────────────────┘
-          │
-          ▼
-    ┌─ Step 5: 팀 스폰 ───────────────────┐
-    │  TeamCreate → Agent spawn (병렬)      │
-    │  MECE 프롬프트 + 탐색 전략 주입       │
-    └──────────────────────────────────────┘
-          │
-          ▼
-    ┌─ Step 6: "팀 준비 완료" ─────────────┐
-    │  작업 지시 대기                        │
-    └──────────────────────────────────────┘
-          │
-          ▼
-    ┌─ Step 7: 실행 & 피드백 루프 ─────────┐
-    │                                        │
-    │  구현 → 테스트 → 피드백 → 머지         │
-    │                                        │
-    │  ┌─ 7-1. 태스크 분배 ──────────┐     │
-    │  │  병렬 (독립) / blockedBy    │     │
-    │  │  COMPLEX: Wave 순서 준수    │     │
-    │  └─────────────────────────────┘     │
-    │           │                            │
-    │           ▼                            │
-    │  ┌─ 7-2. 구현→테스트 루프 ─────┐     │
-    │  │  PASS → 다음                │     │
-    │  │  FAIL → 재시도 (2회)        │     │
-    │  │    → debugger → 재시도      │     │
-    │  │    → circuit breaker        │     │
-    │  └─────────────────────────────┘     │
-    │           │                            │
-    │           ▼                            │
-    │  ┌─ 7-3. 전체 통과 후 ────────┐     │
-    │  │  scenario-tester (있으면)   │     │
-    │  │  Worktree 머지              │     │
-    │  │  Codex 리뷰 (활성화 시)    │     │
-    │  └─────────────────────────────┘     │
-    │           │                            │
-    │           ▼                            │
-    │  ┌─ 7-4. 종료 ────────────────┐     │
-    │  │  모든 태스크 완료 확인      │     │
-    │  │  shutdown + TeamDelete      │     │
-    │  └─────────────────────────────┘     │
-    └──────────────────────────────────────┘
+User: /spawn-team [task]
+        │
+        ▼
+┌─ Step 0: Init ─────────────────────────────────┐
+│  Tool preload + orphan cleanup + stack scan     │
+└────────────────────────────────────────────────┘
+        │
+        ▼
+┌─ Step 1: Project Analysis ─────────────────────┐
+│  1-1. Tech stack detection (parallel)           │
+│  1-2. Domain detection + structure type         │
+│  1-3. Context Map generation (rg scan)          │
+└────────────────────────────────────────────────┘
+        │
+        ▼
+┌─ Step 2: Task-Based Routing ───────────────────┐
+│  N_parallel = tasks that can run in parallel    │
+│  N_files    = files to create or modify         │
+│                                                  │
+│  N_parallel < 3 AND N_files < 5                 │
+│    → SINGLE AGENT (auto-route)                  │
+│                                                  │
+│  N_parallel ≥ 3 OR N_files ≥ 5                  │
+│    → TEAM (continue to Step 3+)                 │
+│                                                  │
+│  explicit plan / structure [C]                   │
+│    → TEAM (COMPLEX path)                        │
+└────────────────────────────────────────────────┘
+        │
+   ┌────┴────────────────────┐
+   │                         │
+SINGLE AGENT              TEAM
+   │                         │
+   ▼                    ┌────┴────────────────┐
+Spawn 1 agent           │   MEDIUM / COMPLEX  │
+Execute directly         │                     │
+Done (no run artifacts)  ▼                     ▼
+                      MEDIUM              COMPLEX
+                      Step 3              Step 3
+                      (scope)         +   Step 4
+                         │              (planning)
+                         └──────┬────────────┘
+                                │
+                                ▼
+                    ┌─ Step 5: Team Proposal ──────────┐
+                    │  Agent count + models + worktree  │
+                    └──────────────────────────────────┘
+                                │
+                                ▼
+                    ┌─ Step 6: User Confirm ────────────┐
+                    │  Team + plan sign-off             │
+                    └──────────────────────────────────┘
+                                │
+                                ▼
+                    ┌─ Step 7: Spawn ───────────────────┐
+                    │  Preview check → experience brief  │
+                    │  → run init → agents               │
+                    └──────────────────────────────────┘
+                                │
+                                ▼
+                    ┌─ Step 8: Execution Loop ──────────┐
+                    │  Implement → Test → Fix → Merge   │
+                    │  → report.yml + summary.yml        │
+                    └──────────────────────────────────┘
 ```
 
 ---
 
-## 복잡도 판단 기준
+## Routing Rules
 
-### 점수 산정
+### Single Agent (auto-route)
 
-| 기준 | 1점 | 2점 | 3점 |
-|------|-----|-----|-----|
-| 도메인 수 | 1개 | 2-3개 | 4개+ |
-| 파일 규모 | ≤10개 | 11-50개 | 51개+ |
-| 도메인 간 의존성 | 독립적 | 일부 공유 | 상호 의존 |
-| 구조 타입 | [A] 명확 (1점) | [B] 평면 (2점) | [C] 불명확 (2점) |
+When task is small enough:
+- One short message to user: "→ Routing to single agent (faster, lower token cost)."
+- One general-purpose Agent spawned, no TeamCreate, no run artifacts
+- `--team` flag forces team mode regardless of size
 
-### 분류 결과
+### Team Paths
 
-- **4-6점 SIMPLE**: 바로 팀 스폰. 추가 질문 없음.
-- **7-9점 MEDIUM**: 범위(IN/OUT/DEFER) 확인 후 진행.
-- **10-11점 COMPLEX**: 구조화 인터뷰 + Wave 분해 후 진행.
-
-### 자동 COMPLEX 트리거
-
-점수와 무관하게 COMPLEX로 판정:
-- 사용자가 "계획해줘" 또는 "plan" 명시
-- 구조 타입 [C] (레거시/불명확)
-- Step 0에서 clarity=LOW 판정
-
-### 사용자 오버라이드
-
-자동 판단 후 항상 사용자에게 확인. "계획 수립 후 진행" 선택 시 SIMPLE도 COMPLEX 경로로 전환 가능.
+| Level | Condition | Steps |
+|-------|-----------|-------|
+| MEDIUM | 3 ≤ N_parallel or N_files ≥ 5 | Step 3 (scope confirm) |
+| COMPLEX | Large N / explicit plan / structure [C] | Step 3 + Step 4 (Wave planning) |
 
 ---
 
-## 계획 수립 (Step 3, COMPLEX만)
+## Context Map (Step 1-3)
 
-### 인터뷰 질문 (5개)
+Before any agents are spawned, Leader builds a compact codebase snapshot using `rg` (ripgrep):
 
-1. **핵심 목표**: "최종 목표가 뭔가요?"
-2. **성공 기준**: "측정 가능한 성공 기준 3개."
-3. **제약사항**: "시간, 기술 제한 등."
-4. **위험 요소**: "잘못되면 뭐가 깨지나요?"
-5. **순서 선호**: "단계 순서가 있나요?"
-
-### Wave 분해
-
-인터뷰 결과 + 소유권 매니페스트 기반으로 자동 생성:
-
-```
-Wave 1 (병렬): 기초 — 타입 정의, DB 스키마
-Wave 2 (병렬): 핵심 — 각 도메인 독립 구현
-Wave 3 (순차): 통합 — 도메인 간 연결
-Wave 4 (병렬): 검증 — unit-test + scenario-test
-Wave 5: 최종 — Codex 리뷰 + 머지
+```bash
+rg --files --sort path | head -80              # file tree
+rg --type py "^(class|def )" --with-filename  # symbol overview
+find . -name "*.py" | xargs wc -l | sort -rn  # LOC per file
 ```
 
-### 자동 검증
-
-계획 생성 후 자동 체크:
-- 각 Wave 완료 조건이 측정 가능한가?
-- 순환 의존성 없는가?
-- 한 에이전트에 태스크 >10개 아닌가?
-- 위험 요소가 완료 기준에 반영됐는가?
+Output (~60 lines) is injected verbatim into every agent prompt.
+Agents skip re-exploration for files already in the Context Map.
 
 ---
 
-## 피드백 루프 상세
+## Scope Confirmation (Step 3, MEDIUM/COMPLEX)
 
-### 정상 경로
+One `AskUserQuestion`:
+- **IN**: domains/files in scope
+- **OUT**: external systems (mock only), CI/CD, performance tuning
+- **DEFER**: low-priority domains
 
-```
-에이전트 구현 완료
-  → unit-tester 테스트
-    → PASS → 다음 태스크
-```
-
-### 실패 경로
-
-```
-FAIL (1회차)
-  → unit-tester가 에이전트에게 직접 버그 리포트 전송
-  → 에이전트 수정 → 재검증
-
-FAIL (2회차)
-  → debugger 온디맨드 스폰 (Haiku)
-  → 버그 분석 결과 → 에이전트에게 전달
-  → 에이전트 수정 → 재검증
-
-FAIL (3회차, debugger 이후)
-  → Circuit Breaker 발동
-  → 사용자에게 선택지:
-    1) Leader 직접 개입
-    2) 해당 기능 스킵
-    3) 전체 중단
-```
-
-### Debate 자동 트리거
-
-실행 중 다음 상황에서 자동으로 Debate Mode 진입:
-
-- DB 스키마 변경 결정 (irreversible)
-- 외부 API 계약 변경 (irreversible)
-- 위험도 점수 6+ 안건 발생
+Scope locked after confirmation. Change attempts trigger a warning.
 
 ---
 
-## 에이전트 역할
+## Planning (Step 4, COMPLEX only)
 
-| 역할 | 모델 | 파일 수정 | 특징 |
-|------|------|-----------|------|
-| Leader (사용자) | Sonnet+thinking | 공유 파일만 | 결정권, 상태 truth |
-| {domain}-be/fe | Sonnet | 담당 도메인만 | MECE 경계 엄수 |
-| fullstack | Sonnet | 전체 | 소규모 전용 |
-| planner | Sonnet | 없음 | 대규모, 계획만 |
-| unit-tester | Haiku | 테스트만 | 코드 수정 금지 |
-| scenario-tester | Haiku | 테스트만 | E2E 플로우 검증 |
-| debugger | Haiku | 없음 | 온디맨드, 분석만 |
-| build-fixer | Haiku | 빌드 관련만 | 온디맨드 |
-| architect | Sonnet | 구조 리팩터 | [C] 구조 시 온디맨드 |
+### Structured Interview (3-5 questions)
+1. Core objective
+2. 3 measurable success criteria
+3. Constraints
+4. Risks
+5. Ordering preference
+
+### Wave Decomposition
+
+```
+Wave 1 (parallel): Foundation — types, schemas, shared interfaces
+Wave 2 (parallel): Core — domain logic per agent
+Wave 3 (sequential): Integration — cross-domain
+Wave N (parallel): Verification — tests
+Wave Final: merge
+```
+
+Each task has: `Task / Accepts (testable) / BlockedBy`.
 
 ---
 
-## 예시 시나리오
+## Execution Loop (Step 8)
 
-### 시나리오 1: TODO 앱 (SIMPLE)
-
-```
-/spawn-team
-
-분석: 1 도메인, 5 파일, [A] 구조
-복잡도: SIMPLE (4점)
-→ fullstack(sonnet) + unit-tester(haiku) = 2명
-→ 바로 작업 지시 가능
-```
-
-### 시나리오 2: Task Manager (MEDIUM)
+### Normal path
 
 ```
-/spawn-team
-
-분석: 3 도메인 (auth, tasks, dashboard), 25 파일, [A] 구조
-복잡도: MEDIUM (7점)
-→ 범위 확인: IN: auth, tasks, dashboard / OUT: 배포, 성능 최적화
-→ auth-be + tasks-be(병합) + dashboard-fe + unit-tester = 4명
-→ 작업 지시
+Agent implements
+  → unit-tester verifies
+    → PASS → next task
 ```
 
-### 시나리오 3: 이커머스 (COMPLEX)
+### Failure path
 
 ```
-/spawn-team
+FAIL (1st)
+  → unit-tester reports directly to agent + Leader
+  → agent fixes → re-verify
 
-분석: 6 도메인, 80+ 파일, [B] 평면 구조
-복잡도: COMPLEX (11점)
-→ 범위 확인: IN: 6 도메인 / OUT: 결제 외부 연동 / DEFER: 국제화
-→ 계획 인터뷰 (5개 질문)
-→ Wave 5개 생성, 도메인별 완료 기준
-→ planner + core-be + orders-be + unit-tester + scenario-tester = 5명
-→ Wave 순서에 따라 실행
+FAIL (2nd)
+  → agent self-spawns debugger sub-agent (Haiku, read-only)
+  → findings relayed → agent fixes → re-verify
+
+FAIL (3rd, post-debugger)
+  → circuit breaker: AskUserQuestion
+    1) Leader intervenes directly
+    2) Skip this feature
+    3) Abort run
+```
+
+### Debate auto-trigger
+
+Debate Mode (`/debate`) auto-triggered on:
+- DB schema changes (irreversible)
+- External API contract changes (irreversible)
+- Risk score 6+ issue
+
+---
+
+## Agent Roles
+
+| Role | Model | Edits | Notes |
+|------|-------|-------|-------|
+| Leader (this session) | Sonnet | Shared files only | State authority |
+| `{domain}-be/fe` | Sonnet | Own domain only | MECE boundary enforced |
+| `fullstack` | Sonnet | Full scope | Small tasks only |
+| `unit-tester` | Haiku | Test files only | No implementation edits |
+| `scenario-tester` | Haiku | Test files only | E2E flow validation |
+| `debugger` | Haiku | None | On-demand, analysis only |
+| `build-fixer` | Haiku | Build files scoped | On-demand |
+| `architect` | Sonnet | Structure refactor | Structure [C] only |
+
+---
+
+## Example Scenarios
+
+### Scenario 1: Simple task (single agent auto-route)
+
+```
+/spawn-team "Add /health endpoint to server.py"
+
+Analysis: 1 task, 2 files → SINGLE AGENT
+→ Routing to single agent (faster, lower token cost).
+Agent implements, tests, done.
+```
+
+### Scenario 2: TODO App (TEAM MEDIUM)
+
+```
+/spawn-team "Build todo API + frontend + tests"
+
+Analysis: 3 parallel tasks, 6+ files → TEAM
+→ fullstack-be(sonnet) + fullstack-fe(sonnet) + unit-tester(haiku)
+→ Scope confirm → spawn → done
+```
+
+### Scenario 3: E-commerce (TEAM COMPLEX)
+
+```
+/spawn-team "E-commerce backend: auth + products + orders + tests"
+
+Analysis: 4+ parallel domains, 15+ files → TEAM COMPLEX
+→ Scope confirm → planning interview → Wave 3 decomposition
+→ products-be(sonnet) + users-be(sonnet) + orders-be(sonnet) + unit-tester(haiku)
+→ Wave-gated execution → done
 ```

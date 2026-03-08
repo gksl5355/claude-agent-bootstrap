@@ -1,0 +1,97 @@
+benchmark:
+  date: "2026-03-08"
+  model_base: "claude-sonnet-4-6"
+
+# ─────────────────────────────────────────────────────
+# Summary table
+# ─────────────────────────────────────────────────────
+results:
+  #           task_locs  single  team   ratio   team_wins
+  SIMPLE:     { locs:  30, single_sec:  57, team_sec: 103, ratio: 1.81, team_wins: false }
+  MEDIUM:     { locs:  60, single_sec:  73, team_sec: 237, ratio: 3.25, team_wins: false }
+  COMPLEX:    { locs:  80, single_sec:  44, team_sec: 174, ratio: 3.95, team_wins: false }
+  LARGE:      { locs: 500, single_sec: 110, team_sec: 175, ratio: 1.59, team_wins: false }
+
+# ─────────────────────────────────────────────────────
+# SIMPLE — 1 domain, 2 files (~30 LOC)
+# ─────────────────────────────────────────────────────
+simple:
+  task: "CRUD API + tests"
+  single: { sec: 57, agents: 1, tests: 10, retries: 0 }
+  team:   { sec: 103, agents: 2, tests: 7, retries: 0 }
+  verdict: "single 1.8x faster — no parallelism available"
+
+# ─────────────────────────────────────────────────────
+# MEDIUM — 3 domains, 3 files (~60 LOC)
+# ─────────────────────────────────────────────────────
+medium:
+  task: "Todo API + HTML frontend + tests"
+  single: { sec: 73, agents: 1, tests: 8, retries: 0 }
+  team:   { sec: 237, agents: 3, tests: 9, retries: 0, note: "tester needed 3 re-prompts — messaging overhead dominated" }
+  verdict: "single 3.2x faster — messaging overhead killed parallelism"
+
+# ─────────────────────────────────────────────────────
+# COMPLEX (synthetic micro) — 4 waves, 5 files (~80 LOC)
+# ─────────────────────────────────────────────────────
+complex:
+  task: "Library system (models→books+users→loans→tests)"
+  single: { sec: 44, agents: 1, tests: 19, retries: 0 }
+  team:   { sec: 174, agents: 5, tests: 15, retries: 0, note: "tester needed 2 re-prompts" }
+  verdict: "single 3.9x faster — micro modules, overhead >> work"
+
+# ─────────────────────────────────────────────────────
+# LARGE — 3 parallel domains, 6 files (~500 LOC total)
+# ─────────────────────────────────────────────────────
+large:
+  task: "E-commerce backend: models+products | users | orders+server | tests"
+  single: { sec: 110, agents: 1, tests: 21, retries: 1 }
+  team:
+    sec: 175
+    agents: 4
+    tests: 20
+    retries: 0
+    polling_approach: true   # tester polled for server.py — zero re-prompt messages
+    handoff_messages_to_tester: 0  # vs 3 in MEDIUM, 2 in COMPLEX
+    wave1_parallel_saving_sec: ~20  # products+users ran in parallel
+    wave2_parallel_saving_sec: ~20  # orders+tester ran in parallel
+    total_parallel_saving_sec: ~40
+    spawn_overhead_sec: ~65         # 4 agents × ~16s each (init + startup)
+  verdict: "single 1.6x faster — closest result; polling worked, spawn overhead still dominates"
+  note: "team had 0 retries vs single's 1 retry — quality parity or better"
+
+# ─────────────────────────────────────────────────────
+# Analysis & Findings
+# ─────────────────────────────────────────────────────
+findings:
+
+  trend:
+    - "As task grows larger, team overhead ratio shrinks (3.9x → 1.6x)"
+    - "Polling approach eliminates tester messaging overhead completely"
+    - "Crossover point not yet reached at 500 LOC total / 125 LOC per domain"
+
+  overhead_breakdown:
+    spawn_per_agent_sec: ~16          # tmux + model init (irreducible)
+    messaging_handoff_sec_old: 40-90  # per handoff (re-prompt pattern)
+    messaging_handoff_sec_polling: 0  # polling pattern — eliminated ✓
+
+  crossover_estimate:
+    parallel_saving_needed_to_break_even_sec: 65   # = spawn overhead for 4 agents
+    domain_locs_needed: ~400          # each domain needs ~400 LOC for 3-4min work
+    total_locs_needed: ~1200          # realistic large feature (Next.js service, microservice, etc.)
+
+  polling_finding: >
+    Replacing "wait for Leader message" with "poll for file existence" eliminated
+    40-90s per handoff. This is the single biggest optimization available.
+    All future agent prompts should use polling, not message-gating.
+
+  auto_routing_implemented: true
+  auto_routing_rule: "score 4-6 (SIMPLE) → single agent automatically; score 7+ → team"
+
+  recommendations:
+    immediate:
+      - "Apply polling pattern to all spawn-team agent prompts (SKILL.md update)"
+      - "Auto-routing already implemented: SIMPLE → single, MEDIUM+ → team"
+    future:
+      - "Reduce spawn overhead: pre-warm agent pool (P2)"
+      - "True crossover benchmark: 1200+ LOC feature across 3+ domains"
+      - "Review/audit tasks (read-only parallel): no handoffs = team always wins"

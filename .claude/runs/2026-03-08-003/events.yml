@@ -1,0 +1,16 @@
+events:
+  - seq: 1
+    ts: "00:05:00"
+    type: agent_spawned
+    agent: fullstack-dev
+    detail: "model=sonnet, scope=server.py"
+  - seq: 2
+    ts: "00:05:00"
+    type: agent_spawned
+    agent: unit-tester
+    detail: "model=haiku, scope=tests/test_server.py"
+  - seq: 3
+    ts: "00:06:00"
+    type: agent_done
+    agent: fullstack-dev
+    detail: "GET /health added — module-level START_TIME, returns {status:ok, uptime:<float>}"

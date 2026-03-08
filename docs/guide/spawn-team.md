@@ -8,23 +8,33 @@
 
 ```
 Step 0   Init              Tool preload + cleanup + auto-detect
-Step 1   Project analysis   Tech stack + domains + structure type
-Step 2   Complexity score   → SIMPLE (4-6) / MEDIUM (7-9) / COMPLEX (10+)
-Step 3   Scope confirm      IN/OUT/DEFER (MEDIUM+ only)
-Step 4   Planning           Interview + Waves (COMPLEX only)
+Step 1   Project analysis   Tech stack + domains + structure type + Context Map
+Step 2   Routing            N_parallel / N_files → single agent OR team
+Step 3   Scope confirm      IN/OUT/DEFER (team MEDIUM+ only)
+Step 4   Planning           Interview + Waves (team COMPLEX only)
 Step 5   Team proposal      Agents + models + ownership
 Step 6   User confirm       Final sign-off
 Step 7   Spawn              Preview → experience brief → run init → agents
 Step 8   Execution          State management → implement → test → merge → report
 ```
 
-## Complexity Paths
+## Routing (Step 2)
 
-| Level | Score | What happens |
-|-------|-------|-------------|
-| SIMPLE | 4-6 | Zero questions. Straight to team proposal → spawn → done |
-| MEDIUM | 7-9 | One scope confirmation (IN/OUT/DEFER), then spawn |
-| COMPLEX | 10+ | Structured interview → Wave plan → completion criteria → spawn |
+| Condition | Route |
+|-----------|-------|
+| N_parallel < 3 AND N_files < 5 | **Single agent** — faster, zero overhead |
+| N_parallel ≥ 3 OR N_files ≥ 5 | **Team** → continue to Steps 3+ |
+| Explicit plan / structure [C] | **Team (COMPLEX)** |
+
+Single agent: one `Agent` spawn, no TeamCreate, no run artifacts.
+Override: `--team` flag forces team regardless of task size.
+
+## Team Complexity Paths
+
+| Level | What happens |
+|-------|-------------|
+| MEDIUM | One scope confirmation (IN/OUT/DEFER), then spawn |
+| COMPLEX | Structured interview → Wave plan → completion criteria → spawn |
 
 ## Team Composition
 

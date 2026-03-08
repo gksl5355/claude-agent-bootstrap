@@ -10,7 +10,7 @@ triggers:
   - "팀 스폰"
   - "팀 만들어"
 argument-hint: "[project path]"
-allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(wc *), Bash(sg *), Bash(echo *), Bash(mkdir *), Bash(ln *), Bash(mv *), Bash(sync *), Bash(cat *), Bash(date *), Bash(printf *), Bash(ls *), Bash(tmux *), Bash(test *), Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, TeamDelete, SendMessage, AskUserQuestion
+allowed-tools: Read, Glob, Grep, Bash(git *), Bash(codex *), Bash(find *), Bash(wc *), Bash(rg *), Bash(sg *), Bash(echo *), Bash(mkdir *), Bash(ln *), Bash(mv *), Bash(sync *), Bash(cat *), Bash(date *), Bash(printf *), Bash(ls *), Bash(tmux *), Bash(test *), Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, TeamDelete, SendMessage, AskUserQuestion
 ---
 
 ## Roles
@@ -34,9 +34,9 @@ Ask only if: non-standard structure can't be auto-detected, or request is ambigu
 
 ---
 
-## Step 1: Project Analysis
+## Step 1: Project Analysis + Context Map
 
-Run 1-1 and 1-2 concurrently.
+Run 1-1, 1-2, 1-3 concurrently (all use fast tools — `rg` preferred over grep, `find` for file listing).
 
 ### 1-1. Tech Stack
 Detect from package.json, requirements.txt, go.mod, Cargo.toml, etc.
@@ -51,7 +51,48 @@ Detect from package.json, requirements.txt, go.mod, Cargo.toml, etc.
 
 Detection failure → AskUserQuestion for manual spec, or assign 1 fullstack agent.
 
-### 1-3. Domain Scale → Ownership Manifest
+### 1-3. Context Map Generation (NEW)
+
+Build a compact codebase snapshot using fast scanning. Target: ≤60 lines, generated once, injected into every agent prompt.
+
+**Scan commands (run in parallel):**
+```bash
+# File tree (respects .gitignore via rg)
+rg --files --sort path | head -80
+
+# Symbol overview per domain
+rg --type py "^(class|def |async def )" --with-filename | head -60
+rg --type ts "^(export |class |function |interface )" --with-filename | head -60
+rg --type go "^(func |type )" --with-filename | head -60
+
+# LOC per file (identify heavy files)
+find . -name "*.py" -o -name "*.ts" -o -name "*.go" | xargs wc -l 2>/dev/null | sort -rn | head -20
+
+# Shared types / interfaces
+rg "^(export type|export interface|@dataclass|type |interface )" --with-filename | head -30
+```
+
+**Output format (store in memory as `CONTEXT_MAP`):**
+```
+## Context Map
+stack: {lang} + {framework}
+entry: {main file}
+
+domains:
+  {dir}/: {N files}, ~{LOC} LOC — {one-line description}
+    key symbols: {class/func names}
+
+shared:
+  {file}: {types/interfaces defined}
+
+heavy_files: (>200 LOC — agents must use offset+limit)
+  {file}: {N} lines
+```
+
+**Usage:** Inject `CONTEXT_MAP` into every agent's spawn prompt verbatim.
+Agents MUST NOT re-explore files already covered by Context Map.
+
+### 1-4. Domain Scale → Ownership Manifest
 
 - small (1-3 files): merge candidate
 - medium (4-9): 1 independent agent
@@ -61,22 +102,45 @@ Each file/directory belongs to exactly 1 entry. Shared files → Leader owns.
 
 ---
 
-## Step 2: Complexity Scoring
+## Step 2: Task-Based Routing
 
-| Criterion | 1 pt | 2 pts | 3 pts |
-|-----------|------|-------|-------|
-| Domain count | 1 | 2-3 | 4+ |
-| File scale | ≤10 | 11-50 | 51+ |
-| Dependencies | Independent | Low | High (mutual) |
-| Structure | [A] | [B] | [C] |
+Decompose the user request into independent tasks. Count parallelizable work — not domain structure.
 
 ```
-4-6  → SIMPLE:  skip to Step 5 (no scope/plan questions)
-7-9  → MEDIUM:  Step 3 → Step 5
-10+  → COMPLEX: Step 3 → Step 4 → Step 5
-Auto COMPLEX: explicit plan request, structure [C]
-Score=LOW clarity → AskUserQuestion ×1, re-score, continue.
+N_parallel = number of tasks that can run simultaneously
+N_files    = estimated files to create or modify
 ```
+
+**Routing:**
+```
+N_parallel < 3  AND  N_files < 5   → SINGLE AGENT (auto-route, see below)
+N_parallel ≥ 3  OR   N_files ≥ 5   → TEAM
+explicit plan request OR structure [C] → TEAM (COMPLEX)
+```
+
+**Examples:**
+```
+"Add /health to server.py"                 → 1 task, 2 files   → SINGLE
+"Auth + products + orders API"             → 3 tasks, 9 files  → TEAM
+"Refactor all services to async"           → 5+ tasks, 10+ files → TEAM (COMPLEX)
+```
+
+Ambiguous request → AskUserQuestion ×1, re-estimate, continue.
+
+### Step 2-route: Single Agent Auto-Routing
+
+If routing = SINGLE AGENT:
+
+1. Inform user:
+```
+→ Single task / small scope detected. Routing to single agent (faster, lower token cost).
+  Use --team to override.
+```
+
+2. Inject Context Map into agent prompt. Spawn one general-purpose Agent (no TeamCreate).
+3. Agent completes → report to user. Done. No run artifacts needed.
+
+**Override:** `--team` flag or explicit team request → proceed to Step 5 with 2-agent minimum.
 
 ---
 
@@ -328,6 +392,19 @@ Partial spawn failure → TeamDelete rollback → notify → suggest retry.
 ### 7-2. Agent Prompts
 
 Read `${CLAUDE_SKILL_DIR}/prompts.md` → inject Common Header + role-specific prompt for each agent. Append Wave info (COMPLEX only).
+
+**Always inject CONTEXT_MAP** (generated in Step 1-3) into every agent prompt:
+```
+## Codebase Context (pre-scanned — do NOT re-explore covered files)
+{CONTEXT_MAP verbatim}
+```
+
+**Progressive tool disclosure** — include only role-relevant tools in agent prompt:
+```
+implementation agents:  Read, Edit, Write, Glob, Grep, Bash
+tester agents:          Read, Bash, Glob, Grep  (no Write/Edit)
+reviewer agents:        Read, Glob, Grep         (no Write/Edit/Bash)
+```
 
 ---
 
