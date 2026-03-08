@@ -24,6 +24,23 @@ cd claude-agent-bootstrap
 2. Installs `teammate.sh` to `~/.claude/`
 3. Patches `~/.claude/settings.json` with required env vars
 
+## Verify Installation
+
+Before first use, run the automated test suite:
+
+```bash
+# Unit tests (no external dependencies)
+python3 -m unittest -v tests/test_server.py   # server: 7 tests
+bash tests/test-teammate-unit.sh              # teammate.sh: 19 tests
+
+# Integration test (requires an actual Claude Code session)
+bash tests/test-spawn-integration.sh --setup-only
+# Then in Claude Code: spawn a 1-agent team named "model-test", terminate immediately
+bash tests/test-spawn-integration.sh --check
+```
+
+All 27 tests should pass before proceeding.
+
 ## First Run
 
 ```

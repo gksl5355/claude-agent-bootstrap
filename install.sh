@@ -8,7 +8,7 @@ TARGET_DIR="$HOME/.claude/skills"
 SETTINGS_FILE="$HOME/.claude/settings.json"
 VERSION_DIR="$HOME/.local/share/claude/versions"
 
-SKILLS=(spawn-team debate ralph)
+SKILLS=(spawn-team debate ralph doctor)
 
 echo "=== Team Orchestrator Installer ==="
 echo ""
@@ -123,6 +123,7 @@ if $OK; then
   echo "  /spawn-team    — Spawn a team for your project"
   echo "  /debate        — Architecture review with Codex xhigh"
   echo "  /ralph         — PRD-based completion guarantee"
+  echo "  /doctor        — Check environment and patch settings"
   echo ""
   echo "Model control:"
   echo "  Default = Sonnet (no action needed)"

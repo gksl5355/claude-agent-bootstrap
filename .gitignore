@@ -18,6 +18,12 @@ RESEARCH_INDEX.md
 # Private (personal docs, career notes, etc.)
 private/
 
+# Run artifacts (user-specific, generated at runtime)
+.claude/runs/
+
+# Test output (local only)
+test_result.md
+
 # Logs
 *.log
 

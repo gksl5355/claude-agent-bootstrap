@@ -33,6 +33,34 @@ Then in Claude Code:
 /spawn-team
 ```
 
+## Verify Installation
+
+After installing, confirm everything works:
+
+```bash
+# Automated unit tests
+python3 -m unittest -v tests/test_server.py   # 7 tests
+bash tests/test-teammate-unit.sh              # 19 tests
+
+# Integration test setup
+bash tests/test-spawn-integration.sh --setup-only
+```
+
+Then in a Claude Code session:
+
+```
+"Create a 1-agent test team, agent name model-test, no tasks, terminate immediately."
+```
+
+Then check:
+
+```bash
+bash tests/test-spawn-integration.sh --check
+# Expected: PASS  model-test -> Sonnet
+```
+
+Or run `/doctor` inside Claude Code for an automated environment check.
+
 ## Release
 
 Push a version tag to create/update a GitHub Release automatically:
@@ -49,7 +77,7 @@ git push origin v0.5.4
 
 ```bash
 mkdir -p ~/.claude/skills
-for skill in spawn-team debate ralph; do
+for skill in spawn-team debate ralph doctor; do
   ln -sf "$(pwd)/.claude/skills/$skill" ~/.claude/skills/$skill
 done
 ```
@@ -67,6 +95,7 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 | `spawn-team` | Yes | None (core) |
 | `debate` | Yes | None |
 | `ralph` | No | spawn-team required |
+| `doctor` | Yes | None |
 
 </details>
 

@@ -33,6 +33,34 @@ cd claude-agent-bootstrap
 /spawn-team
 ```
 
+## 설치 검증
+
+설치 후 다음으로 정상 동작을 확인합니다:
+
+```bash
+# 자동화 단위 테스트
+python3 -m unittest -v tests/test_server.py   # 7개 테스트
+bash tests/test-teammate-unit.sh              # 19개 테스트
+
+# 통합 테스트 환경 준비
+bash tests/test-spawn-integration.sh --setup-only
+```
+
+그 다음 Claude Code 세션에서:
+
+```
+"1명짜리 테스트 팀 만들어. 에이전트 이름은 model-test로 해. 아무 작업 없이 바로 종료해."
+```
+
+결과 확인:
+
+```bash
+bash tests/test-spawn-integration.sh --check
+# 예상: PASS  model-test -> Sonnet
+```
+
+또는 Claude Code 안에서 `/doctor`를 실행하면 환경을 자동 진단합니다.
+
 ## Release
 
 버전 태그를 푸시하면 GitHub Release가 자동 생성/업데이트됩니다:
@@ -49,7 +77,7 @@ git push origin v0.5.4
 
 ```bash
 mkdir -p ~/.claude/skills
-for skill in spawn-team debate ralph; do
+for skill in spawn-team debate ralph doctor; do
   ln -sf "$(pwd)/.claude/skills/$skill" ~/.claude/skills/$skill
 done
 ```
@@ -67,6 +95,7 @@ ln -sf "$(pwd)/.claude/skills/debate" ~/.claude/skills/debate
 | `spawn-team` | O | 없음 (핵심) |
 | `debate` | O | 없음 |
 | `ralph` | X | spawn-team 필요 |
+| `doctor` | O | 없음 |
 
 </details>
 
