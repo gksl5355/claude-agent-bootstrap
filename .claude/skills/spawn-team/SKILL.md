@@ -249,6 +249,8 @@ RUN_DIR=".claude/runs/${RUN_ID}"
 mkdir -p "${RUN_DIR}"
 ```
 
+Write plan.yml, state.yml, events.yml using the **Write tool**. Symlink via Bash.
+
 **plan.yml** (written once at spawn, never modified):
 ```yaml
 run_id: "{RUN_ID}"
@@ -340,12 +342,10 @@ COMPLEX: Wave order enforced — Leader sends "WAVE {N} COMPLETE" to gate next W
 ### 8-1.5. State Management Protocol
 
 **state.yml — atomic write (CRITICAL: never write in-place):**
-```bash
-cat > .claude/runs/${RUN_ID}/state.yml.tmp << 'EOF'
-... yaml content ...
-EOF
-sync .claude/runs/${RUN_ID}/state.yml.tmp
-mv .claude/runs/${RUN_ID}/state.yml.tmp .claude/runs/${RUN_ID}/state.yml
+```
+1. Write tool → .claude/runs/${RUN_ID}/state.yml.tmp   (full YAML content)
+2. Bash: sync .claude/runs/${RUN_ID}/state.yml.tmp
+3. Bash: mv .claude/runs/${RUN_ID}/state.yml.tmp .claude/runs/${RUN_ID}/state.yml
 ```
 Increment `state_version` on every write. Agents detect stale reads by checking version.
 
