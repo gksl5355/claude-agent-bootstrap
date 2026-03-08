@@ -182,6 +182,68 @@ Claude writes directly for everything else. Codex failure → write directly, no
 
 ## Step 7: Spawn Team
 
+### 7-0. Run Initialization
+
+Before spawning agents, Leader creates the run directory and initial artifacts.
+
+**Run directory:**
+```bash
+RUN_DATE=$(date +%Y-%m-%d)
+NNN=$(printf "%03d" $(($(ls -d .claude/runs/${RUN_DATE}-* 2>/dev/null | wc -l) + 1)))
+RUN_ID="${RUN_DATE}-${NNN}"
+RUN_DIR=".claude/runs/${RUN_ID}"
+mkdir -p "${RUN_DIR}"
+```
+
+**plan.yml** (written once at spawn, never modified):
+```yaml
+run_id: "{RUN_ID}"
+timestamp: "{ISO-8601}"
+project: "{project-root}"
+task: "{user request summary}"
+complexity: SIMPLE | MEDIUM | COMPLEX
+score: {4-12}
+
+team:
+  - name: {agent-name}
+    role: {role}
+    model: sonnet | haiku
+    owns: ["{glob-patterns}"]
+
+ownership_manifest:
+  "{glob-pattern}": {agent-name}
+  shared: ["{shared-files}"]
+  shared_owner: leader
+```
+
+**state.yml** (initialized, then atomically updated throughout run):
+```yaml
+run_id: "{RUN_ID}"
+state_version: 1
+phase: PLANNING
+updated_at: "{ISO-8601}"
+agents: {}
+completed: []
+in_progress: []
+blocked: []
+shared_contracts: []
+key_decisions: []
+next: []
+scope_violations: 0
+```
+
+**events.yml** (initialized, then append-only):
+```yaml
+events: []
+```
+
+**latest symlink:**
+```bash
+ln -sfn "${RUN_ID}" .claude/runs/latest
+```
+
+After initialization, proceed to agent spawning (7-1).
+
 ### 7-1. TeamCreate + Spawn Agents
 
 ```
@@ -200,6 +262,13 @@ Requires: `CLAUDE_CODE_TEAMMATE_COMMAND` set to `teammate.sh` via `install.sh`.
 
 Partial spawn failure → TeamDelete rollback → notify → suggest retry.
 
+**After each successful agent spawn:**
+1. Append `agent_spawned` event to events.yml (with seq, ts, agent name, model)
+2. Update state.yml: add agent to `agents` map (status: SPAWNED), increment `state_version`
+
+**After all agents spawned:**
+- Update state.yml: `phase: EXECUTING`
+
 ### 7-2. Agent Prompts
 
 Read `${CLAUDE_SKILL_DIR}/prompts.md` → inject Common Header + role-specific prompt for each agent. Append Wave info (COMPLEX only).
@@ -213,6 +282,46 @@ Read `${CLAUDE_SKILL_DIR}/prompts.md` → inject Common Header + role-specific p
 COMPLEX: Task format (Task/Accepts/BlockedBy). MEDIUM: brief Accepts in description. SIMPLE: plain description.
 Independent tasks → parallel. Dependent → blockedBy.
 COMPLEX: Wave order enforced — Leader sends "WAVE {N} COMPLETE" to gate next Wave.
+
+### 8-1.5. State Management Protocol
+
+**state.yml — atomic write (CRITICAL: never write in-place):**
+```bash
+cat > .claude/runs/${RUN_ID}/state.yml.tmp << 'EOF'
+... yaml content ...
+EOF
+sync .claude/runs/${RUN_ID}/state.yml.tmp
+mv .claude/runs/${RUN_ID}/state.yml.tmp .claude/runs/${RUN_ID}/state.yml
+```
+Increment `state_version` on every write. Agents detect stale reads by checking version.
+
+**events.yml — append on every meaningful state change:**
+
+Leader appends immediately (not batched). Each event has a monotonic `seq` counter.
+
+Event types:
+- Lifecycle: `agent_spawned`, `task_assigned`, `agent_done`, `wave_complete`
+- State: `decision_promoted`, `contract_published`, `blocked`, `unblocked`
+- Problems: `scope_drift`, `test_result` (FAIL/PASS), `escalation`
+
+```yaml
+- seq: {N}
+  ts: "{HH:MM:SS}"
+  type: {event_type}
+  agent: {agent-name}        # if applicable
+  detail: "{description}"    # if applicable
+```
+
+**Communication layers:**
+```
+SendMessage (tmux) = ephemeral hint, best-effort, can be lost
+state.yml          = authority (Leader-managed, persistent decisions)
+events.yml         = audit trail (immutable, append-only)
+```
+
+**Decision promotion flow:** Agent reports agreement via SendMessage → Leader writes to `shared_contracts` / `key_decisions` in state.yml → Leader appends `decision_promoted` event to events.yml.
+
+**Agent reads:** state.yml only (for checkpoint: phase, blockers, contracts). Agents never read events.yml during execution.
 
 ### 8-2. Progress Updates (mandatory)
 
@@ -254,11 +363,71 @@ Shared type/schema change: non-breaking → approve / breaking → consider Deba
 1. scenario-tester → FAIL → fix → re-verify
 2. Worktree merge (per 8-4)
 3. AskUserQuestion: "Run Codex xhigh review before finalizing?" → yes: run ×1 (read-only). Failure → skip.
-4. Completion report
+4. Write report.yml + freeze state.yml + lifecycle cleanup (see below)
 
 **Shutdown conditions (AND):** all tasks completed + unit-tester PASS + scenario-tester PASS + (COMPLEX) all Wave criteria satisfied → shutdown_request to each agent individually (no broadcast) → TeamDelete.
 
 **Shutdown procedure:** Send individual `shutdown_request` to each agent. If no `shutdown_approved` within 15 seconds → `Bash: tmux kill-pane -t {paneId}` as fallback. After all agents terminated → cleanup any leftover panes in current session → TeamDelete.
+
+#### report.yml (written at completion)
+
+Leader generates report.yml from events.yml + observed results:
+
+```yaml
+run_id: "{RUN_ID}"
+duration_minutes: {elapsed}
+status: COMPLETED | FAILED | ABORTED
+
+agents:
+  - name: {agent-name}
+    tasks_completed: {N}
+    tasks_failed: {N}
+    retries: {N}
+    files_changed: ["{file-paths}"]
+
+judgment:
+  success_rate: {tasks_completed / total_tasks}
+  retry_rate: {tasks_with_retries / total_tasks}
+  scope_violations: {count from events.yml}
+  escalations: {count}
+  verdict: "{one-line human-readable summary}"
+```
+
+#### State freeze
+
+After report.yml is written:
+- Update state.yml one final time: `phase: COMPLETED`, all agents → `CLEANED`
+- No further state.yml writes after freeze
+
+#### Lifecycle cleanup
+
+```
+Per-agent (after merge):
+  1. Delete worktree: git worktree remove {path} (if isolation: "worktree")
+  2. Kill tmux pane: tmux kill-pane -t {paneId}
+  3. Update state.yml: agent status → CLEANED
+
+Post-run:
+  1. state.yml frozen (phase: COMPLETED)
+  2. events.yml closed (no more appends)
+  3. TeamDelete
+```
+
+#### Run archival
+
+Runs older than 7 days are archived:
+```bash
+# Move old runs to archive
+mkdir -p .claude/runs/archive
+for dir in .claude/runs/????-??-??-???; do
+  age_days=$(( ($(date +%s) - $(date -d "$(basename $dir | cut -d- -f1-3)" +%s)) / 86400 ))
+  if [ "$age_days" -gt 7 ]; then
+    mv "$dir" .claude/runs/archive/
+  fi
+done
+```
+
+Archival runs on each new spawn (Step 7-0) — clean up before creating new run.
 
 ---
 
