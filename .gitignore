@@ -27,6 +27,14 @@ test_result.md
 # Logs
 *.log
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Problem/notes files (local only)
+*-problem.md
+
 # OS
 .DS_Store
 Thumbs.db
