@@ -201,8 +201,8 @@ Rules: ≤10 tasks per agent. Accepts missing → task not issued. Scope ≤200 
 |-------|---------|
 | **Sonnet** | Planning, complex coding, multi-file coordination, architecture decisions |
 | **Haiku** | Simple test execution, linting, format checks, repetitive verification, sub-agents |
-| **Codex (CLI)** | Purely mechanical, zero-context code generation (see Codex Offloading below) |
-| **Codex xhigh** | Debate + pre-merge final review only (read-only) |
+| **Codex (CLI)** | Purely mechanical, zero-context code generation — `gpt-5.3-codex` (see Codex Offloading below) |
+| **Codex xhigh** | Debate + pre-merge final review only (read-only) — `gpt-5.3-codex` + xhigh (NOT gpt-5.4: patch/edit bug) |
 
 **No Opus under any circumstances.**
 
@@ -226,6 +226,7 @@ Delegate to Codex only when ALL hold: (1) zero codebase context required, (2) pu
 Good: standalone utility function with fixed signature, standard config file (.eslintrc, .gitignore), empty test file skeleton.
 Bad: CRUD touching existing models, type defs referencing existing types, anything reading existing files first.
 
+CLI: `codex exec -m gpt-5.3-codex --full-auto "{instruction}"`
 Claude writes directly for everything else. Codex failure → write directly, no retry.
 
 ### Worktree

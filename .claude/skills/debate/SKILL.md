@@ -56,7 +56,7 @@ cat > /tmp/debate-input.md << 'DEBATE_EOF'
 {proposal}
 DEBATE_EOF
 
-codex exec -c model_reasoning_effort=xhigh -s read-only \
+codex exec -m gpt-5.3-codex -c model_reasoning_effort=xhigh -s read-only \
   "$(cat /tmp/debate-input.md)" 2>&1
 ```
 
