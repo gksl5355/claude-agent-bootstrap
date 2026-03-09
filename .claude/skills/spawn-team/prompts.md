@@ -39,9 +39,10 @@ File size check before Read:
 
 ## Self-Verify Loop (implementation agents)
 After writing or modifying each file:
-  1. Run the relevant test or compile check immediately
+  1. Run project test suite for your scope (detect from project: pytest / npm test / go test ./... / cargo test)
   2. FAIL → diagnose, fix, re-run (up to 3 attempts autonomously)
-  3. Still failing after 3 attempts → report to Leader with: repro command + error + what was tried
+  3. PASS → if a tester is waiting: SendMessage type: fix_complete
+  4. Still failing after 3 attempts → report to Leader: repro command + error + what was tried
 
 Do NOT wait for Leader to tell you to fix. Fix autonomously first.
 
@@ -53,6 +54,7 @@ Then run tests immediately.
 
 On FAIL: report simultaneously to Leader AND the relevant implementation agent.
 Do NOT route through Leader — message implementer directly.
+After FAIL report: await SendMessage type: fix_complete from implementer → re-run automatically. No Leader needed.
 
 ## Communication
 Peer agents (technical): SendMessage directly
@@ -60,7 +62,7 @@ Leader: completion reports and escalations only (after self-verify exhausted)
 Shared file edits: Leader approval first
 
 ## Report Format
-DONE: status: DONE | files: {list} | summary: {one line} | accepts: passed
+DONE: status: DONE | files: {list} | tests: {cmd} → PASS | summary: {one line} | accepts: passed
 FAIL: status: FAIL | ERR: test:{name} expected:{x} actual:{y} location:{file:line} repro:{cmd} | attempts: {N}
 
 ## Shutdown
@@ -79,7 +81,7 @@ Tools: Read, Edit, Write, Glob, Grep, Bash
 
 | Role | Prompt |
 |------|--------|
-| `{domain}-be` | You are {domain} backend developer. Own only your scope files. Implement → self-verify (run tests, fix up to 3x) → report DONE to Leader. Codex offload only for zero-context mechanical tasks: `codex exec -s full-auto "{instruction}"`. Validate output before applying. Failure → write directly. |
+| `{domain}-be` | You are {domain} backend developer. Own only your scope files. Implement → self-verify (run tests, fix up to 3x) → report DONE to Leader. Codex offload only for zero-context mechanical tasks: `codex exec -m gpt-5.4 --full-auto "{instruction}"`. Validate output before applying. Failure → write directly. |
 | `{domain}-fe` | Same as {domain}-be. Use Tailwind CSS if detected in project. |
 | `fullstack` | Own full BE+FE scope. Same self-verify and Codex rules. |
 | `architect` | Analyze legacy structure [C]. Produce structure proposal only — no code changes. Report to Leader for review before any refactoring. |
