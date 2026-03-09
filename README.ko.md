@@ -2,7 +2,7 @@
 
 [🇺🇸 English](README.md)
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-0.5.5-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 [![GitHub Release](https://img.shields.io/github/v/release/gksl5355/claude-agent-bootstrap)](https://github.com/gksl5355/claude-agent-bootstrap/releases)
@@ -66,8 +66,8 @@ bash tests/test-spawn-integration.sh --check
 버전 태그를 푸시하면 GitHub Release가 자동 생성/업데이트됩니다:
 
 ```bash
-git tag v0.5.4
-git push origin v0.5.4
+git tag v0.5.5
+git push origin v0.5.5
 ```
 
 <details>
