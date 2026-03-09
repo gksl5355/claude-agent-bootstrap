@@ -201,8 +201,8 @@ Rules: ≤10 tasks per agent. Accepts missing → task not issued. Scope ≤200 
 |-------|---------|
 | **Sonnet** | Planning, complex coding, multi-file coordination, architecture decisions |
 | **Haiku** | Simple test execution, linting, format checks, repetitive verification, sub-agents |
-| **Codex (CLI)** | Purely mechanical, zero-context code generation — `gpt-5.3-codex` (see Codex Offloading below) |
-| **Codex xhigh** | Debate + pre-merge final review only (read-only) — `gpt-5.3-codex` + xhigh (NOT gpt-5.4: patch/edit bug) |
+| **Codex (CLI)** | Purely mechanical, zero-context code generation — `gpt-5.4` (see Codex Offloading below) |
+| **Codex review** | Debate + pre-merge final review only (read-only) — `gpt-5.4` (no xhigh) |
 
 **No Opus under any circumstances.**
 
@@ -226,7 +226,7 @@ Delegate to Codex only when ALL hold: (1) zero codebase context required, (2) pu
 Good: standalone utility function with fixed signature, standard config file (.eslintrc, .gitignore), empty test file skeleton.
 Bad: CRUD touching existing models, type defs referencing existing types, anything reading existing files first.
 
-CLI: `codex exec -m gpt-5.3-codex --full-auto "{instruction}"`
+CLI: `codex exec -m gpt-5.4 --full-auto "{instruction}"`
 Claude writes directly for everything else. Codex failure → write directly, no retry.
 
 ### Worktree
@@ -494,7 +494,7 @@ Shared type/schema change: non-breaking → approve / breaking → consider Deba
 
 1. scenario-tester → FAIL → fix → re-verify
 2. Worktree merge (per 8-4)
-3. AskUserQuestion: "Run Codex xhigh review before finalizing?" → yes: run ×1 (read-only). Failure → skip.
+3. AskUserQuestion: "Run Codex review before finalizing?" → yes: run ×1 (read-only, gpt-5.4). Failure → skip.
 4. Write report.yml + freeze state.yml + lifecycle cleanup (see below)
 
 **Shutdown conditions (AND):** all tasks completed + unit-tester PASS + scenario-tester PASS + (COMPLEX) all Wave criteria satisfied → shutdown_request to each agent individually (no broadcast) → TeamDelete.
@@ -610,7 +610,7 @@ Archival runs on each new spawn (Step 7-0) — clean up before creating new run.
 
 ## Debate Mode
 
-Adversarial architecture review via Codex xhigh. Details: `.claude/skills/debate/SKILL.md`.
+Adversarial architecture review via Codex (gpt-5.4). Details: `.claude/skills/debate/SKILL.md`.
 
 Hard trigger: irreversible=true or impact=3. Soft: risk score 6+.
 6-7 → Leader Judge. 8-9 or hard → User Judge.

@@ -1,6 +1,6 @@
 ---
 name: debate
-description: Adversarial architecture review using Codex xhigh. Standalone or auto-triggered within spawn-team. Use on "debate", "architecture review", "design review".
+description: Adversarial architecture review using Codex (gpt-5.4). Standalone or auto-triggered within spawn-team. Use on "debate", "architecture review", "design review".
 triggers:
   - "debate"
   - "architecture review"
@@ -12,7 +12,7 @@ allowed-tools: Read, Glob, Grep, Bash(codex *), Bash(cat > /tmp/debate*), AskUse
 
 # Debate Mode — Adversarial Architecture Review
 
-Submit a design proposal to Codex xhigh for adversarial review to eliminate blind spots.
+Submit a design proposal to Codex (gpt-5.4) for adversarial review to eliminate blind spots.
 
 **Invoke:** `/debate "JWT vs Session Auth"` (standalone) or auto-enter via spawn-team hard/soft triggers.
 Standalone: use argument as decision subject; if none, collect via AskUserQuestion.
@@ -56,7 +56,7 @@ cat > /tmp/debate-input.md << 'DEBATE_EOF'
 {proposal}
 DEBATE_EOF
 
-codex exec -m gpt-5.3-codex -c model_reasoning_effort=xhigh -s read-only \
+codex exec -m gpt-5.4 -s read-only \
   "$(cat /tmp/debate-input.md)" 2>&1
 ```
 
