@@ -107,22 +107,30 @@ Each file/directory belongs to exactly 1 entry. Shared files → Leader owns.
 Decompose the user request into independent tasks. Count parallelizable work — not domain structure.
 
 ```
-N_parallel = number of tasks that can run simultaneously
-N_files    = estimated files to create or modify
+N_parallel  = number of tasks that can run simultaneously
+N_files     = estimated files to create or modify
+LOC_domain  = estimated LOC per domain (rough: small<100, medium 100-400, large 400+)
 ```
 
 **Routing:**
 ```
-N_parallel < 3  AND  N_files < 5   → SINGLE AGENT (auto-route, see below)
-N_parallel ≥ 3  OR   N_files ≥ 5   → TEAM
-explicit plan request OR structure [C] → TEAM (COMPLEX)
+N_parallel < 3  AND  N_files < 5              → SINGLE AGENT
+N_parallel ≥ 3  AND  LOC_domain < 200         → SINGLE AGENT  ← spawn overhead > parallelism gain
+N_parallel ≥ 3  AND  LOC_domain ≥ 200         → TEAM
+reviewer-only tasks (read-only, no handoffs)  → TEAM (always wins regardless of LOC)
+explicit plan request OR structure [C]        → TEAM (COMPLEX)
 ```
+
+Benchmark basis: spawn overhead ~16s/agent; team breaks even at ~200 LOC/domain (~1,200 LOC total).
+Below that threshold, single agent is 1.6–3.9× faster due to spawn + messaging overhead.
 
 **Examples:**
 ```
-"Add /health to server.py"                 → 1 task, 2 files   → SINGLE
-"Auth + products + orders API"             → 3 tasks, 9 files  → TEAM
-"Refactor all services to async"           → 5+ tasks, 10+ files → TEAM (COMPLEX)
+"Add /health to server.py"                 → 1 task,  2 files, ~10 LOC/domain  → SINGLE
+"Auth + products + orders API (small)"     → 3 tasks, 9 files, ~50 LOC/domain  → SINGLE (LOC too small)
+"Auth + products + orders API (full)"      → 3 tasks, 9 files, ~300 LOC/domain → TEAM
+"Refactor all services to async"           → 5+ tasks, 10+ files               → TEAM (COMPLEX)
+"Security audit across 3 domains"         → read-only parallel                 → TEAM
 ```
 
 Ambiguous request → AskUserQuestion ×1, re-estimate, continue.
@@ -133,8 +141,8 @@ If routing = SINGLE AGENT:
 
 1. Inform user:
 ```
-→ Single task / small scope detected. Routing to single agent (faster, lower token cost).
-  Use --team to override.
+→ Small scope detected (spawn overhead > parallelism gain below ~200 LOC/domain).
+  Routing to single agent (faster, lower token cost). Use --team to override.
 ```
 
 2. Inject Context Map into agent prompt. Spawn one general-purpose Agent (no TeamCreate).
