@@ -12,12 +12,13 @@ class TestServer(unittest.TestCase):
     def setUpClass(cls):
         """Start the server once for all tests."""
         cls.port = 8001
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         cls.process = subprocess.Popen(
             ['python3', 'server.py'],
             env={**os.environ, 'PORT': str(cls.port)},
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            cwd='/home/th/prj/01.claude-agent-bootstrap'
+            cwd=project_root
         )
         # Wait for server to start
         time.sleep(0.5)

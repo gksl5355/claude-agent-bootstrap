@@ -30,7 +30,7 @@
   ✓ Claude Code 2.1.71
   ✓ tmux 3.3a
   ✓ CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
-  ✓ CLAUDE_CODE_TEAMMATE_COMMAND=/home/th/.claude/teammate.sh
+  ✓ CLAUDE_CODE_TEAMMATE_COMMAND=/home/user/.claude/teammate.sh
   ✓ teammateMode=tmux
   ✗ Codex CLI not found (optional)
   ✓ git 2.43.0
