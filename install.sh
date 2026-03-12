@@ -127,7 +127,7 @@ if $OK; then
   echo ""
   echo "Model control:"
   echo "  Default = Sonnet (no action needed)"
-  echo "  Haiku:  echo \"claude-haiku-4-5-20251001\" > /tmp/claude-team-model-{agent-name}"
+  echo "  Haiku:  echo \"claude-haiku-4-5\" > /tmp/claude-team-model-{agent-name}"
 else
   echo "=== Installation had issues — check output above ==="
   exit 1

@@ -397,7 +397,7 @@ Per agent (Agent tool): subagent_type: "general-purpose", team_name, name: "{dom
 ```
 
 **Model routing (via `teammate.sh`):**
-Haiku agents: write signal file BEFORE spawn: `echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-{agent-name}`
+Haiku agents: write signal file BEFORE spawn: `echo "claude-haiku-4-5" > /tmp/claude-team-model-{agent-name}`
 (Requires: `CLAUDE_CODE_TEAMMATE_COMMAND=~/.claude/teammate.sh` via `install.sh`)
 
 **After all agents spawned:**
