@@ -29,9 +29,9 @@ TEAMMATE_SRC="$SCRIPTS_DIR/teammate.sh"
 TEAMMATE_DST="$HOME/.claude/teammate.sh"
 
 if [ -f "$TEAMMATE_SRC" ]; then
-  cp "$TEAMMATE_SRC" "$TEAMMATE_DST"
-  chmod +x "$TEAMMATE_DST"
-  echo "  ✓ teammate.sh → ~/.claude/teammate.sh"
+  ln -sf "$TEAMMATE_SRC" "$TEAMMATE_DST"
+  chmod +x "$TEAMMATE_SRC"
+  echo "  ✓ teammate.sh → ~/.claude/teammate.sh (symlink)"
 else
   echo "  ✗ $TEAMMATE_SRC not found — skipping"
 fi
