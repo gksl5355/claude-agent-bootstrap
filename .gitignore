@@ -23,6 +23,7 @@ private/
 
 # Test output (local only)
 test_result.md
+prd.json
 
 # Logs
 *.log

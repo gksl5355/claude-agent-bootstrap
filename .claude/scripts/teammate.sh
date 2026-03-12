@@ -30,13 +30,13 @@ if [ -n "$AGENT_NAME" ] && [ -f "/tmp/claude-team-model-${AGENT_NAME}" ]; then
     VAL=$(cat "/tmp/claude-team-model-${AGENT_NAME}")
     rm -f "/tmp/claude-team-model-${AGENT_NAME}"
     case "$VAL" in
-        claude-sonnet-4-6|claude-haiku-4-5-20251001) MODEL="$VAL" ;;
+        claude-opus-4-6|claude-sonnet-4-6|claude-haiku-4-5-20251001) MODEL="$VAL" ;;
     esac
 elif [ -f "/tmp/claude-team-model" ]; then
     VAL=$(cat "/tmp/claude-team-model")
     rm -f "/tmp/claude-team-model"
     case "$VAL" in
-        claude-sonnet-4-6|claude-haiku-4-5-20251001) MODEL="$VAL" ;;
+        claude-opus-4-6|claude-sonnet-4-6|claude-haiku-4-5-20251001) MODEL="$VAL" ;;
     esac
 fi
 
