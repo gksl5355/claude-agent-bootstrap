@@ -33,7 +33,7 @@ tmux list-sessions
 | ID | 테스트 | 검증 대상 | 예상 결과 |
 |----|--------|----------|----------|
 | T1 | Sonnet 1-agent spawn | teammate.sh 호출 + 모델 | log에 model=claude-sonnet-4-6 |
-| T2 | Haiku signal spawn | signal file 기반 라우팅 | log에 model=claude-haiku-4-5-20251001 |
+| T2 | Haiku signal spawn | signal file 기반 라우팅 | log에 model=claude-haiku-4-5 |
 | T3 | 3-agent parallel spawn | 병렬 스폰 + 모델 정확성 | 3개 에이전트 각각 올바른 model |
 | T4 | Pane count limit | 3번째 이후 에이전트 스폰 | "Could not determine pane count" 에러 없음 |
 | T5 | Zombie 정리 | 세션 종료 후 잔류 | 이전 세션의 pane/session 없음 |
@@ -82,7 +82,7 @@ tmux list-panes -a
 ```bash
 # 1. 환경 준비
 rm -f /tmp/claude-teammate.log /tmp/claude-team-model*
-echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-haiku-test
+echo "claude-haiku-4-5" > /tmp/claude-team-model-haiku-test
 
 # 2. Claude Code 시작
 claude
@@ -96,7 +96,7 @@ cat /tmp/claude-teammate.log
 
 ### 예상 결과
 ```
-... TEAMMATE agent=haiku-test model=claude-haiku-4-5-20251001
+... TEAMMATE agent=haiku-test model=claude-haiku-4-5
 ```
 
 ### 실제 결과
@@ -105,7 +105,7 @@ cat /tmp/claude-teammate.log
 ```
 
 ### 판정
-- [ ] PASS: `model=claude-haiku-4-5-20251001`
+- [ ] PASS: `model=claude-haiku-4-5`
 - [ ] FAIL: signal file 미읽음
 
 ---
@@ -115,7 +115,7 @@ cat /tmp/claude-teammate.log
 ```bash
 # 1. 환경 준비
 rm -f /tmp/claude-teammate.log /tmp/claude-team-model*
-echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-unit-tester
+echo "claude-haiku-4-5" > /tmp/claude-team-model-unit-tester
 
 # 2. Claude Code 시작
 claude
@@ -133,7 +133,7 @@ tmux list-panes -a
 ```
 ... TEAMMATE agent=fe-dev model=claude-sonnet-4-6
 ... TEAMMATE agent=be-dev model=claude-sonnet-4-6
-... TEAMMATE agent=unit-tester model=claude-haiku-4-5-20251001
+... TEAMMATE agent=unit-tester model=claude-haiku-4-5
 ```
 
 ### 실제 결과

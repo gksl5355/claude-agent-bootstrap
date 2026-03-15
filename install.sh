@@ -121,7 +121,7 @@ if $OK; then
   echo ""
   echo "Usage:"
   echo "  /spawn-team    — Spawn a team for your project"
-  echo "  /debate        — Architecture review with Codex xhigh"
+  echo "  /debate        — Architecture review with Codex (gpt-5.4)"
   echo "  /ralph         — PRD-based completion guarantee"
   echo "  /doctor        — Check environment and patch settings"
   echo ""

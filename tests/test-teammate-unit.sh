@@ -68,12 +68,12 @@ echo "claude-sonnet-4-6" > /tmp/claude-team-model
 assert_model "T02 Generic signal Sonnet" "claude-sonnet-4-6" \
     --agent-name t02
 
-echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model
-assert_model "T03 Generic signal Haiku" "claude-haiku-4-5-20251001" \
+echo "claude-haiku-4-5" > /tmp/claude-team-model
+assert_model "T03 Generic signal Haiku" "claude-haiku-4-5" \
     --agent-name t03
 
-echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-t04
-assert_model "T04 Agent-specific signal Haiku" "claude-haiku-4-5-20251001" \
+echo "claude-haiku-4-5" > /tmp/claude-team-model-t04
+assert_model "T04 Agent-specific signal Haiku" "claude-haiku-4-5" \
     --agent-name t04
 
 echo ""
@@ -81,8 +81,8 @@ echo ""
 # --- Group 2: Priority & Fallback ---
 echo "[2/5] Priority & Fallback"
 echo "claude-sonnet-4-6" > /tmp/claude-team-model
-echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-t05
-assert_model "T05 Agent-specific > generic" "claude-haiku-4-5-20251001" \
+echo "claude-haiku-4-5" > /tmp/claude-team-model-t05
+assert_model "T05 Agent-specific > generic" "claude-haiku-4-5" \
     --agent-name t05
 assert_file "T06 Generic preserved when specific used" "/tmp/claude-team-model" "yes"
 rm -f /tmp/claude-team-model
@@ -99,7 +99,7 @@ echo ""
 
 # --- Group 3: Signal Lifecycle ---
 echo "[3/5] Signal Lifecycle"
-echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-t09
+echo "claude-haiku-4-5" > /tmp/claude-team-model-t09
 PATH="$MOCK_DIR:$PATH" "$TEAMMATE" --agent-name t09 >/dev/null 2>&1
 assert_file "T09 Agent-specific signal consumed" "/tmp/claude-team-model-t09" "no"
 
@@ -118,8 +118,8 @@ assert_model "T11 --model opus stripped -> Sonnet" "claude-sonnet-4-6" \
 assert_model "T12 --model between other args" "claude-sonnet-4-6" \
     --agent-id id1 --model claude-opus-4-6 --agent-name t12 --team-name test
 
-echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-t13
-assert_model "T13 Signal + opus stripped -> Haiku" "claude-haiku-4-5-20251001" \
+echo "claude-haiku-4-5" > /tmp/claude-team-model-t13
+assert_model "T13 Signal + opus stripped -> Haiku" "claude-haiku-4-5" \
     --agent-name t13 --model claude-opus-4-6
 
 assert_model "T14 No --agent-name arg" "claude-sonnet-4-6" \
@@ -130,16 +130,16 @@ echo ""
 # --- Group 5: Parallel Safety ---
 echo "[5/5] Parallel Safety (3 agents simultaneous)"
 clean
-echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-par-a
+echo "claude-haiku-4-5" > /tmp/claude-team-model-par-a
 echo "claude-sonnet-4-6"         > /tmp/claude-team-model-par-b
-echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-par-c
+echo "claude-haiku-4-5" > /tmp/claude-team-model-par-c
 
 (PATH="$MOCK_DIR:$PATH" "$TEAMMATE" --agent-name par-a 2>/dev/null > /tmp/test-par-a) &
 (PATH="$MOCK_DIR:$PATH" "$TEAMMATE" --agent-name par-b 2>/dev/null > /tmp/test-par-b) &
 (PATH="$MOCK_DIR:$PATH" "$TEAMMATE" --agent-name par-c 2>/dev/null > /tmp/test-par-c) &
 wait
 
-for pair in "par-a:claude-haiku-4-5-20251001" "par-b:claude-sonnet-4-6" "par-c:claude-haiku-4-5-20251001"; do
+for pair in "par-a:claude-haiku-4-5" "par-b:claude-sonnet-4-6" "par-c:claude-haiku-4-5"; do
     name="${pair%%:*}"
     expected="${pair#*:}"
     actual=$(cat "/tmp/test-$name" 2>/dev/null | tr -d '\n')

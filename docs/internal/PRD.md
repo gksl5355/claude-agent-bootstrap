@@ -349,7 +349,7 @@ Patterns emerge from actual run data. Leader tags them naturally.
 /doctor
 
 === Team Orchestrator Health Check ===
-  ✓ Claude Code 2.1.71
+  ✓ Claude Code 2.1.74
   ✓ tmux 3.3a
   ✓ CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
   ✓ CLAUDE_CODE_TEAMMATE_COMMAND=/home/user/.claude/teammate.sh

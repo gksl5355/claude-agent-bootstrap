@@ -110,7 +110,7 @@ Print results in this exact format:
 Claude Code Agent Teams — Environment Check
 ============================================
 
-  ✓ Claude Code        2.1.71
+  ✓ Claude Code        2.1.74
   ✓ tmux               3.3a
   ✓ Agent Teams flag   CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
   ✓ Teammate command   /home/user/.claude/teammate.sh (executable)

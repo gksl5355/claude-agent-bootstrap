@@ -44,7 +44,7 @@ Hard cap: **5 agents**. Flexible composition adapted to the task.
 |-------|---------|
 | Sonnet | Planning, complex coding, multi-file work |
 | Haiku | Tests, linting, format checks, sub-agents |
-| Codex xhigh | Debate + final review (read-only) |
+| Codex (gpt-5.4) | Debate + final review (read-only) |
 
 3+ agents automatically use worktree isolation.
 

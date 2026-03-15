@@ -30,7 +30,7 @@ echo $TMUX
 | ID | 테스트 | 검증 대상 | 예상 결과 |
 |----|--------|----------|----------|
 | B1 | Sonnet 1-agent spawn | teammate.sh 호출 여부 | log에 model=claude-sonnet-4-6 |
-| B2 | Haiku signal spawn | signal file -> Haiku | log에 model=claude-haiku-4-5-20251001 |
+| B2 | Haiku signal spawn | signal file -> Haiku | log에 model=claude-haiku-4-5 |
 | B3 | 2-agent parallel spawn | 병렬 스폰 시 model 정확성 | 각각 올바른 model |
 | B4 | Agent 종료 | in-process 종료 시 자동 정리 | claude exit 후 자식 프로세스 없음 |
 
@@ -76,7 +76,7 @@ cat /tmp/claude-teammate.log
 rm -f /tmp/claude-teammate.log /tmp/claude-team-model*
 
 # 2. Haiku signal 수동 작성 (Claude가 해야 하지만 수동 테스트)
-echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-haiku-test
+echo "claude-haiku-4-5" > /tmp/claude-team-model-haiku-test
 
 # 3. Claude Code 시작
 claude
@@ -90,7 +90,7 @@ cat /tmp/claude-teammate.log
 
 ### 예상 결과
 ```
-2026-03-06 HH:MM:SS TEAMMATE agent=haiku-test model=claude-haiku-4-5-20251001
+2026-03-06 HH:MM:SS TEAMMATE agent=haiku-test model=claude-haiku-4-5
 ```
 
 ### 실제 결과
@@ -99,7 +99,7 @@ cat /tmp/claude-teammate.log
 ```
 
 ### 판정
-- [ ] PASS: `model=claude-haiku-4-5-20251001`
+- [ ] PASS: `model=claude-haiku-4-5`
 - [ ] FAIL: `model=claude-sonnet-4-6` (signal 미읽음)
 
 ---
@@ -109,7 +109,7 @@ cat /tmp/claude-teammate.log
 ```bash
 # 1. 환경 준비
 rm -f /tmp/claude-teammate.log /tmp/claude-team-model*
-echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-tester
+echo "claude-haiku-4-5" > /tmp/claude-team-model-tester
 
 # 2. Claude Code 시작
 claude
@@ -124,7 +124,7 @@ cat /tmp/claude-teammate.log
 ### 예상 결과
 ```
 ... TEAMMATE agent=coder model=claude-sonnet-4-6
-... TEAMMATE agent=tester model=claude-haiku-4-5-20251001
+... TEAMMATE agent=tester model=claude-haiku-4-5
 ```
 
 ### 실제 결과

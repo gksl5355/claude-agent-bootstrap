@@ -70,7 +70,7 @@ BT1이 시나리오 A 또는 B인 경우만 진행.
 
 ```bash
 # 1. signal 준비
-echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-haiku-bash-test
+echo "claude-haiku-4-5" > /tmp/claude-team-model-haiku-bash-test
 
 # 2. Claude 안에서:
 #    "테스트 팀, 에이전트 1명 이름 haiku-bash-test. 바로 종료."
@@ -87,7 +87,7 @@ cat /tmp/claude-teammate.log
 
 ### 판정
 
-- [ ] PASS: `model=claude-haiku-4-5-20251001`
+- [ ] PASS: `model=claude-haiku-4-5`
 - [ ] FAIL: signal file 미읽음
 
 ---

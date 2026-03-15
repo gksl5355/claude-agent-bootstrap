@@ -82,7 +82,7 @@ case "${1:-}" in
             case "$model" in
                 claude-sonnet-4-6)
                     printf "  \033[32mPASS\033[0m  %s -> Sonnet\n" "$agent" ;;
-                claude-haiku-4-5-20251001)
+                claude-haiku-4-5)
                     printf "  \033[32mPASS\033[0m  %s -> Haiku\n" "$agent" ;;
                 claude-opus-4-6)
                     printf "  \033[31mFAIL\033[0m  %s -> Opus (model override not working!)\n" "$agent"
@@ -105,7 +105,7 @@ case "${1:-}" in
         echo "To test Haiku routing, run in Claude Code:"
         echo '  "Haiku 모델로 haiku-test라는 에이전트 1명 스폰해줘"'
         echo "Before spawning, the SKILL.md should write:"
-        echo '  echo "claude-haiku-4-5-20251001" > /tmp/claude-team-model-haiku-test'
+        echo '  echo "claude-haiku-4-5" > /tmp/claude-team-model-haiku-test'
         echo "Then --check again."
         ;;
 

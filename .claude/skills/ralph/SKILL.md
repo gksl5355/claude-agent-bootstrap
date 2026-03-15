@@ -66,7 +66,7 @@ Pass → prd.json `passes:true`. Fail → apply spawn-team §8-3.
 ## Step 6: Architect Review
 
 - Small (changes <10 files): Leader direct review
-- Medium/Large (10+): Codex xhigh read-only
+- Medium/Large (10+): Codex (gpt-5.4) read-only
 Pass → Step 7. Fail → feedback → re-implement → Step 4.
 
 ## Step 7: Done

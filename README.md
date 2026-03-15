@@ -192,8 +192,8 @@ Claude Code Agent Teams are powerful, but manual setup requires many decisions �
 |---------|---------|-------------|
 | **Planning** | COMPLEX auto or "plan this" | Structured interview → Wave decomposition → completion criteria |
 | **Scope lock** | MEDIUM+ auto | IN/OUT/DEFER confirmed, warnings on scope creep |
-| **Debate** | `/debate` or risk 6+ | Codex xhigh adversarial architecture review (2 rounds max) |
-| **Codex review** | Post-merge | xhigh read-only cross-review |
+| **Debate** | `/debate` or risk 6+ | Codex (gpt-5.4) adversarial architecture review (2 rounds max) |
+| **Codex review** | Post-merge | gpt-5.4 read-only cross-review |
 | **Ralph** | `/ralph` | PRD-driven completion — doesn't stop until all stories pass |
 
 ---
@@ -228,7 +228,7 @@ Step 8   Execution loop            State management → implement → test → m
 |------|-------|-----------|
 | All team agents (fullstack, BE/FE, planner, architect) | **Sonnet** | Cost-efficient, sufficient reasoning |
 | Tests, debug, build fixes (sub-agents) | Haiku | Lightweight, self-spawned |
-| Final review, design critique | Codex xhigh | Independent perspective |
+| Final review, design critique | Codex (gpt-5.4) | Independent perspective |
 
 > **How this works:** `./install.sh` installs `teammate.sh` and sets `CLAUDE_CODE_TEAMMATE_COMMAND` in settings.json. When Claude Code spawns a teammate in tmux mode, it calls `teammate.sh` which strips the default `--model` flag and substitutes Sonnet (default) or Haiku (via signal file). No binary modification needed.
 
@@ -247,7 +247,7 @@ Large  (5):    planner(sonnet) + domain(sonnet) × 2 + unit-tester + scenario-te
 | Skill | Trigger | Role |
 |-------|---------|------|
 | [`/spawn-team`](.claude/skills/spawn-team/SKILL.md) | "set up a team", "spawn team" | Core orchestrator — analyze → plan → compose → execute |
-| [`/debate`](.claude/skills/debate/SKILL.md) | "debate", "architecture review" | Codex xhigh adversarial review (standalone or within spawn-team) |
+| [`/debate`](.claude/skills/debate/SKILL.md) | "debate", "architecture review" | Codex (gpt-5.4) adversarial review (standalone or within spawn-team) |
 | [`/ralph`](.claude/skills/ralph/SKILL.md) | "don't stop", "ralph" | PRD-driven completion loop |
 | [`/doctor`](.claude/skills/doctor/SKILL.md) | "doctor", "health check" | Environment validation + settings patch |
 
@@ -277,7 +277,7 @@ Built on ideas and patterns from these projects:
 | [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) by @Yeachan-Heo | Magic Keyword intent detection, ralph persistence loop | Intent detection & natural language interface |
 | [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode) by @code-yeongyu | Planning Triad (Metis→Prometheus→Momus), Wave decomposition, 4-criteria verification | Plan decomposition & verification |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) by Anthropic | Agent Teams API, Plan Mode, worktree isolation | Foundation platform |
-| [Codex CLI](https://github.com/openai/codex) by OpenAI | ExecPlan pattern, Decision Log, xhigh reasoning | Independent review & analysis |
+| [Codex CLI](https://github.com/openai/codex) by OpenAI | ExecPlan pattern, Decision Log, gpt-5.4 reasoning | Independent review & analysis |
 | [OpenCode](https://github.com/opencode-ai/opencode) | swarm_decompose, agent role specialization | Agent role separation |
 
 ---
