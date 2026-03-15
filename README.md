@@ -2,7 +2,7 @@
 
 [🇰🇷 한국어](README.ko.md)
 
-![Version](https://img.shields.io/badge/version-0.5.5-blue)
+![Version](https://img.shields.io/badge/version-0.6.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Agent_Teams-purple)
 [![GitHub Release](https://img.shields.io/github/v/release/gksl5355/claude-agent-bootstrap)](https://github.com/gksl5355/claude-agent-bootstrap/releases)
@@ -66,8 +66,8 @@ Or run `/doctor` inside Claude Code for an automated environment check.
 Push a version tag to create/update a GitHub Release automatically:
 
 ```bash
-git tag v0.5.5
-git push origin v0.5.5
+git tag v0.6.0
+git push origin v0.6.0
 ```
 
 <details>
