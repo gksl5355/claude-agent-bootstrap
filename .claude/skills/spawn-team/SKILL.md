@@ -93,7 +93,7 @@ Each file/directory belongs to exactly 1 entry. Shared files → Leader owns.
 
 ## Step 2: Task-Based Routing
 
-Decompose the user request into independent tasks. Count parallelizable work — not domain structure.
+Decompose the user request into components before counting. Even compact requests ("add login") may involve multiple layers (BE, FE, DB, middleware, tests). Always decompose first, then count.
 
 ```
 N_parallel  = number of tasks that can run simultaneously
@@ -115,13 +115,15 @@ LOC_domain  = estimated LOC per domain (rough: small<100, medium 100-400, large 
 2. Ask: proceed with /batch, or override with team? If override → continue to Step 2-routing.
 
 **Examples:** "replace all X with Y", "add logging everywhere", "migrate deprecated API across codebase", "enforce naming convention".
+Repetitive identical changes across services (same pattern, different files) → mechanical, even if phrased as "add feature".
 
-**Not mechanical:** "add feature", "refactor architecture", "implement new domain".
+**Not mechanical:** "add unique feature per domain", "refactor architecture", "implement new domain".
 
 ### Step 2-routing: Routing Decision
 
 ```
 N_parallel < 3  AND  N_files < 5              → SINGLE AGENT
+N_parallel < 3  AND  N_files ≥ 5              → SINGLE AGENT (sequential dependency — team overhead > gain)
 N_parallel ≥ 3  AND  N_files < 5              → SINGLE AGENT (overhead > gain for small files)
 N_parallel ≥ 3  AND  N_files ≥ 5              → TEAM (coordination overhead justified)
 reviewer-only tasks (read-only, no handoffs)  → TEAM (always wins regardless of LOC)
@@ -138,8 +140,11 @@ Below that threshold, single agent is 1.6–3.9× faster due to spawn + messagin
 ```
 "Add /health to server.py"                 → 1 task,  1 file, ~10 LOC           → SINGLE (N_parallel < 3)
 "Add 3 endpoints to server.py"             → 3 tasks, 1 file, ~90 LOC           → SINGLE (N_files < 5)
+"Refactor payment error handling"          → 1 task,  6 files, ~400 LOC         → SINGLE (N_parallel < 3, sequential)
+"Add healthcheck to all services"          → 5 tasks, 5 files, ~10 LOC each     → /batch (identical pattern, mechanical)
 "Auth + products + orders API (small)"     → 3 tasks, 9 files, ~50 LOC/domain  → TEAM (N_files ≥ 5)
 "Auth + products + orders API (full)"      → 3 tasks, 9 files, ~300 LOC/domain → TEAM
+"Add login feature"                        → decompose: BE+FE+DB+middleware+test → 4 tasks, 8 files → TEAM
 "Refactor all services to async"           → 5+ tasks, 10+ files               → TEAM (COMPLEX)
 "Security audit across 3 domains"         → read-only parallel                 → TEAM
 ```
@@ -393,7 +398,8 @@ After initialization, proceed to agent spawning (7-1).
 
 ```
 TeamCreate: team_name, description
-Per agent (Agent tool): subagent_type: "general-purpose", team_name, name: "{domain}-{role}", run_in_background: true
+Spawn ALL agents in a single message (multiple Agent tool calls in one response).
+Per agent: subagent_type: "general-purpose", team_name, name: "{domain}-{role}", run_in_background: true
 ```
 
 **Model routing (via `teammate.sh`):**
