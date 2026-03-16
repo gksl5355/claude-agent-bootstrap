@@ -163,7 +163,7 @@ Claude Code Agent Teams are powerful, but manual setup requires many decisions �
 |---------|-------------|
 | **Domain detection** | Extracts domains from project structure (routes/, services/, pages/) |
 | **Structure classification** | [A] Domain dirs / [B] Flat / [C] Legacy — auto-detected |
-| **Task-based routing** | Small task (N_parallel < 3, N_files < 5) → single agent; larger → team |
+| **Task-based routing** | Decompose → count parallel tasks/files → single agent, /batch, or team |
 | **Context Map** | Pre-scans codebase with rg once, injects into all agent prompts. Agents skip re-exploration |
 | **Dynamic team composition** | 1–5 agents auto-determined with model routing |
 | **MECE ownership** | Each file belongs to exactly one agent. Boundary violations auto-reverted |
@@ -205,7 +205,7 @@ Claude Code Agent Teams are powerful, but manual setup requires many decisions �
 ```
 Step 0   Init                      Tool preload + cleanup + auto-detect stack/scale.
 Step 1   Project analysis          Tech stack + domains + structure type [A/B/C] + Context Map
-Step 2   Routing                   N_parallel / N_files → single agent (fast) OR team
+Step 2   Routing                   Decompose → mechanical? /batch : N_parallel/N_files → single OR team
 Step 3   Scope confirmation        IN/OUT/DEFER user check (team MEDIUM+ only)
 Step 4   Planning                  Interview + Wave decomposition + criteria (team COMPLEX only)
 Step 5   Team composition          Agent count + model + worktree mode
@@ -218,15 +218,17 @@ Step 8   Execution loop            State management → implement → test → m
 
 | Route | Condition | Approx. |
 |-------|-----------|---------|
-| Single agent | N_parallel < 3 AND N_files < 5 | seconds |
-| Team MEDIUM | N_parallel ≥ 3 or N_files ≥ 5 | ~3 min |
+| /batch | Mechanical transformation (mass rename, format, repetitive pattern) | seconds |
+| Single agent | N_parallel < 3 or N_files < 5 | seconds |
+| Team MEDIUM | N_parallel ≥ 3 AND N_files ≥ 5 | ~3 min |
 | Team COMPLEX | Large scope / explicit plan / [C] structure | ~10 min |
 
 ### Model Routing
 
 | Role | Model | Rationale |
 |------|-------|-----------|
-| All team agents (fullstack, BE/FE, planner, architect) | **Sonnet** | Cost-efficient, sufficient reasoning |
+| COMPLEX planning (Step 4 sub-agent only) | **Opus** | Deep reasoning for interview + wave decomposition |
+| All team agents (fullstack, BE/FE, architect) | **Sonnet** | Cost-efficient, sufficient reasoning |
 | Tests, debug, build fixes (sub-agents) | Haiku | Lightweight, self-spawned |
 | Final review, design critique | Codex (gpt-5.4) | Independent perspective |
 
