@@ -73,10 +73,10 @@ Every run produces files in `.claude/runs/{YYYY-MM-DD-NNN}/`:
 | `events.yml` | Full event log (append-only) | Every state change |
 | `report.yml` | Success rate, retries, verdict | At completion |
 
-After multiple runs, `summary.yml` aggregates patterns:
-- Recurring scope drift → auto-warned on next spawn
-- Proven team configs → recommended
-- Average stats (duration, success rate)
+After multiple runs, Forge learns patterns:
+- `forge ingest` reads events.yml + report.yml → updates forge.db
+- Recurring issues tracked via Q-value EMA
+- `forge resume --team-brief` shows recommendations on next spawn
 
 ## Next Steps
 

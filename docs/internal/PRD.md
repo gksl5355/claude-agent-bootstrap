@@ -238,12 +238,12 @@ Cleanup triggers:
 **Past runs inform future spawns. Not prediction — experience.**
 
 Old F3 was git heuristic analysis (blame, log). Killed — too speculative.
-New F3: read summary.yml from past runs and brief the spawn.
+New F3: use Forge learning system (`forge resume --team-brief`) at spawn time.
 
 ```
 /spawn-team "Add payment processing"
   ↓
-Experience brief (from summary.yml):
+Experience brief (from forge.db):
   "Recent patterns in this project:
    - auth-be drifted to database.ts 3 times (scope issue)
    - MEDIUM tasks: sonnet 2 + haiku 1 had best success rate
@@ -253,8 +253,8 @@ Experience brief (from summary.yml):
    - Consider splitting database work to separate agent"
 ```
 
-Implementation: read `.claude/runs/summary.yml` at spawn time.
-No git analysis, no ML. Just structured recall of past run data.
+Implementation: call `forge resume --team-brief` at spawn time.
+No git analysis, no ML. Just structured recall of past run data via Forge learning.
 
 ---
 
@@ -273,7 +273,7 @@ Complexity: MEDIUM (score 8)
 Team: auth-be(sonnet), auth-fe(sonnet), unit-tester(haiku)
 Ownership: [manifest]
 
-Experience (last 5 runs):
+Experience (from Forge):
   - auth-be scope drift: 2 occurrences on database.ts
   - Recommended: exclude database.ts from auth-be
 
@@ -286,59 +286,16 @@ Proceed? [y/n/adjust]
 **No pre-defined rules. Problems emerge from data.**
 
 Old F5 was AP001-AP008 hard-coded rules. Killed — over-engineered.
-New F5: observe problems → record → if repeated → auto-warn.
+New F5: observe problems → record in events.yml → Forge ingest → learn via Q-value EMA.
 
 ```
 Run 1: auth-be edits database.ts (not in scope) → Leader logs it
-Run 2: auth-be edits database.ts again → logged, pattern tagged
-Run 3: spawn time → auto-warning "auth-be has scope drift on database.ts"
+Run 2: auth-be edits database.ts again → logged, Forge detects pattern
+Run 3: spawn time → `forge resume --team-brief` shows pattern with Q-value confidence
 ```
 
-#### summary.yml (auto-aggregated from recent runs)
-
-```yaml
-project: "/home/user/my-app"
-runs_analyzed: 10
-last_updated: "2026-03-10"
-
-patterns:
-  - type: scope_drift
-    agent: auth-be
-    file: "src/config/database.ts"
-    occurrences: 3
-    first_seen: "2026-03-08-001"
-    last_seen: "2026-03-10-002"
-    action: warn_on_spawn
-
-  - type: retry_heavy
-    agent: unit-tester
-    avg_retries: 2.3
-    occurrences: 4
-    action: note
-
-  - type: team_success
-    config: "sonnet:2 + haiku:1"
-    complexity: MEDIUM
-    success_rate: 0.85
-    occurrences: 6
-    action: recommend
-
-stats:
-  avg_duration_min: 22
-  avg_success_rate: 0.82
-  avg_retries: 1.2
-  most_common_team: "sonnet:2 + haiku:1"
-```
-
-How patterns are promoted:
-```
-Occurrence 1:  logged in events.yml only
-Occurrence 2+: tagged as pattern in summary.yml
-Pattern with 3+ occurrences: action = warn_on_spawn (shown in F3/F4)
-```
-
-No pre-defined rule IDs. No hard-coded detection scripts.
-Patterns emerge from actual run data. Leader tags them naturally.
+Patterns are learned through Forge database (forge.db).
+Events flow: `.claude/runs/{id}/events.yml` → `forge ingest` → `forge.db` → `forge resume`.
 
 ---
 
@@ -398,7 +355,6 @@ Build after F1/F3/F4/F5/F6 are stable.
 └── .claude/
     └── runs/
         ├── latest → symlink to most recent run
-        ├── summary.yml             # Aggregated patterns from recent runs (F5)
         ├── {run-id}/
         │   ├── plan.yml
         │   ├── state.yml
@@ -411,7 +367,7 @@ Build after F1/F3/F4/F5/F6 are stable.
 
 ```
 [Pre-spawn]
-  summary.yml exists? → F3 experience brief
+  forge resume --team-brief → F3 experience brief (if data exists)
   --preview? → show plan + brief, exit
   user confirms → plan.yml written, state.yml initialized
 
@@ -429,7 +385,7 @@ Build after F1/F3/F4/F5/F6 are stable.
 [Post-run]
   state.yml → phase: COMPLETED, frozen
   report.yml written (judgment: success_rate, retries, violations)
-  summary.yml updated (aggregate patterns from this run + recent history)
+  writeback.sh → forge ingest --auto (ingest events.yml → forge.db)
   lifecycle cleanup (worktree, tmux, archival)
 
 [Benchmark mode — separate, one-off]
@@ -457,12 +413,12 @@ Acceptance:
 
 | Track | Work | Files | Parallel? |
 |-------|------|-------|-----------|
-| 2A | F5: summary.yml generation from run data | spawn-team/SKILL.md | First |
+| 2A | F5: Forge ingest (run data → forge.db) | spawn-team/SKILL.md | First |
 | 2B | F3: experience brief at spawn time | spawn-team/SKILL.md | After 2A |
 | 2C | F4: --preview mode | spawn-team/SKILL.md | After 2B |
 
 Acceptance:
-- summary.yml auto-generated after each run
+- `forge ingest` runs automatically after each run
 - Patterns detected (2+ occurrences)
 - Experience brief shown at spawn (when data exists)
 - --preview shows plan + brief without spawning
@@ -484,7 +440,7 @@ v1.0 is done when:
 2. state.yml is the primary state source during execution (agents never read events.yml)
 3. Atomic write for state.yml (tmp + sync + mv)
 4. report.yml includes per-run judgment (success_rate, retries, violations)
-5. summary.yml auto-aggregates patterns from recent runs
+5. `forge ingest` auto-aggregates patterns from recent runs into forge.db
 6. Experience brief shown at spawn when past data exists
 7. `--preview` shows plan + brief without spawning
 8. Lifecycle cleanup: finished agents cleaned, runs archived after 7d

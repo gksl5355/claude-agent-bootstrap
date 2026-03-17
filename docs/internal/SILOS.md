@@ -21,7 +21,7 @@ Wave 1 (parallel)
                          (doctor/SKILL.md, new file)
 
 Wave 2 (Wave 1 complete, sequential on SKILL.md)
-  Session C ─── Silo 2A: F5 Pattern Detection + summary.yml
+  Session C ─── Silo 2A: F5 Pattern Detection (forge ingest)
               ── Silo 2B: F3 Experience Brief (after 2A)
               ── Silo 2C: F4 Preview Mode (after 2B)
                          (all in spawn-team/SKILL.md)
@@ -123,7 +123,7 @@ test ! -f state.yml.tmp
 
 ## Wave 2
 
-### Silo 2A — F5: Pattern Detection
+### Silo 2A — F5: Pattern Detection (via Forge)
 **Session**: C (Wave 2, first)
 **Prerequisite**: Wave 1 complete
 
@@ -136,22 +136,18 @@ test ! -f state.yml.tmp
 #### SKILL.md changes
 
 **§8.5 (Completion)** — add after report.yml:
-- Read current summary.yml (if exists)
-- Extract patterns from this run's events.yml + report.yml
-- Update pattern counts (scope_drift, retry_heavy, team_success)
-- Apply promotion rules (1→note, 2→note, 3+→warn_on_spawn)
-- Write updated summary.yml
+- Call `forge ingest --auto` (via writeback.sh)
+- Forge reads events.yml + report.yml from this run
+- Forge extracts failures and updates Q-value EMA in forge.db
+- Patterns emerge naturally from Forge learning
 
 #### Acceptance
 ```bash
-# summary.yml exists after run completion
-test -f .claude/runs/summary.yml
+# writeback.sh calls forge ingest after run completion
+grep "forge ingest" writeback.sh
 
-# Contains patterns section
-grep "patterns:" summary.yml
-
-# Contains stats section
-grep "avg_success_rate" summary.yml
+# Forge database is updated
+ls -l ~/.forge/forge.db
 ```
 
 ---
@@ -162,16 +158,15 @@ grep "avg_success_rate" summary.yml
 #### SKILL.md changes
 
 **§7 (Spawn Team)** — add before team proposal:
-- Check if summary.yml exists
-- If yes, read patterns with action: warn_on_spawn or recommend
-- Include in spawn briefing to user
+- Call `forge resume --team-brief`
+- Include patterns and recommendations in spawn briefing to user
 - Use for team composition recommendations
 
 #### Acceptance
 ```bash
-# When summary.yml exists with patterns, spawn shows brief
+# When forge has patterns, spawn shows brief via `forge resume --team-brief`
 # "Experience brief: ..."
-# "Pattern: auth-be scope drift on database.ts (3x)"
+# "Pattern: auth-be scope drift on database.ts (Q:0.7)"
 ```
 
 ---

@@ -11,8 +11,8 @@
 |-------|----------------------|---------------------------|
 | Technology | Shell + SKILL.md (no servers, no DBs) | GraphDB + Vector DB + LLM API |
 | State | YAML files in `.claude/runs/` | Cross-run retrieval + embedding |
-| Patterns | Bottom-up from run data | Automated analysis + auto-retirement |
-| Learning | summary.yml (recent runs) | Full memory system |
+| Patterns | Bottom-up from run data via Forge | Automated analysis + auto-retirement |
+| Learning | Forge.db Q-value EMA | Full memory system |
 | Token tracking | Not available (Claude Code limitation) | Proxy-based measurement |
 
 ---
@@ -211,14 +211,11 @@ Documented as advisory — these fields are best-effort after recovery.
 
 ### Commands (run at spawn time)
 ```bash
-# Check if summary.yml exists
-test -f .claude/runs/summary.yml
-
-# If exists, read patterns section
-# Leader includes relevant patterns in spawn briefing
+# Retrieve experience brief from Forge
+forge resume --team-brief
 ```
 
-No git analysis. No external API. Just read summary.yml.
+No git analysis. No external API. Forge database provides learning from past runs.
 
 ### Output format (shown to user at spawn)
 ```
@@ -233,65 +230,27 @@ Experience brief (from recent runs):
 
 ---
 
-## F5: Pattern Detection — Summary Generation
+## F5: Pattern Detection — Forge Learning
 
-### When to generate
+### When to ingest
 After every run completion (before archival), Leader:
-1. Reads current summary.yml (if exists)
-2. Reads current run's events.yml and report.yml
-3. Extracts notable events (scope_drift, high retries, failures)
-4. Updates pattern counts
-5. Writes new summary.yml
+1. Calls `forge ingest --auto` via writeback.sh
+2. Forge reads events.yml and report.yml
+3. Extracts failures and learning events
+4. Updates Q-value EMA in forge.db
+5. Patterns emerge via failure model + Q-ranking
 
-### summary.yml schema
-```yaml
-project: "/home/user/my-app"
-runs_analyzed: 10
-last_updated: "2026-03-10"
+Learning is stored in Forge database (forge.db) with Q-value EMA tracking.
 
-patterns:
-  - type: scope_drift
-    agent: auth-be
-    file: "src/config/database.ts"
-    occurrences: 3
-    first_seen: "2026-03-08-001"
-    last_seen: "2026-03-10-002"
-    action: warn_on_spawn          # shown in F3/F4
-
-  - type: retry_heavy
-    agent: unit-tester
-    avg_retries: 2.3
-    occurrences: 4
-    action: note                    # logged, not warned
-
-  - type: team_success
-    config: "sonnet:2 + haiku:1"
-    complexity: MEDIUM
-    success_rate: 0.85
-    occurrences: 6
-    action: recommend               # suggested in F3/F4
-
-stats:
-  avg_duration_min: 22
-  avg_success_rate: 0.82
-  avg_retries: 1.2
-  most_common_team: "sonnet:2 + haiku:1"
+### Pattern discovery rules
 ```
-
-### Pattern promotion rules
-```
-Occurrence 1:     logged in events.yml only
-Occurrence 2:     added to summary.yml patterns (action: note)
-Occurrence 3+:    action: warn_on_spawn (shown in F3 brief + F4 preview)
+Occurrence 1:     Failure record created with initial Q
+Occurrence 2+:    Q-value updated via EMA: Q ← Q + α(r - Q)
+Q-value >= 0.5:   Pattern appears in `forge resume --team-brief`
 ```
 
 No pre-defined pattern IDs. No hard-coded detection.
-Leader naturally identifies repeated problems from events.yml data.
-
-### summary.yml scope
-- Covers last 10 runs (sliding window)
-- Old patterns that don't recur naturally age out
-- Kept per-project (not global — global is P2)
+Patterns emerge naturally from failure data and Q-ranking.
 
 ---
 

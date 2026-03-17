@@ -287,7 +287,7 @@ Claude writes directly for everything else. Codex failure → write directly, no
 At Step 7 entry, check for `--preview` flag in user request.
 
 **If `--preview` detected:**
-1. Run experience brief (7-pre) if summary.yml exists
+1. Run experience brief (7-pre) via Forge
 2. Show preview output:
 ```
 === PREVIEW (no agents spawned) ===
@@ -308,27 +308,33 @@ Proceed? [y/n/adjust]
 
 **If no `--preview`:** continue to 7-pre → 7-0 (normal flow).
 
-### 7-pre. Experience Brief (F3)
+### 7-pre. Experience Brief (F3 — Forge-powered)
 
-Before run initialization, check for past run data:
+Before run initialization, query Forge for past team experience:
 
 ```bash
-test -f .claude/runs/summary.yml
+# Get recommended team config for detected complexity
+RECOMMEND=$(forge recommend --workspace "$WORKSPACE" --complexity "$COMPLEXITY" 2>/dev/null) || true
+
+# Get team experience brief (Q-ranked failures + recent runs)
+BRIEF=$(forge resume --team-brief --workspace "$WORKSPACE" --session-id "team-$(date +%s)" 2>/dev/null) || true
 ```
 
-If summary.yml exists, read and present relevant patterns to user:
+If Forge returns data, present to user:
 
-**Show brief summary (only `warn_on_spawn` patterns):**
+**Show brief summary:**
 ```
-Experience brief: {count} pattern(s) found
-  - {type}: {recommendation}
+Experience brief (Forge):
+  Recommended config: {RECOMMEND output}
+  {BRIEF output — team-related failures + recent run history}
 ```
 
 **Apply to team:**
-- `team_success` → use proven config
-- `scope_drift` / `retry_heavy` with `warn_on_spawn` → adjust scope or model
+- Forge `recommend` output → use as default team config proposal
+- Team-related failures (high Q) → adjust scope or model to avoid known issues
+- Recent run success rates → inform complexity assessment
 
-If no summary.yml exists, skip silently (no error, no message).
+If Forge returns no data, skip silently (no error, no message).
 
 ### 7-0. Run Initialization
 
@@ -559,50 +565,25 @@ After report.yml is written:
 - Update state.yml one final time: `phase: COMPLETED`, all agents → `CLEANED`
 - No further state.yml writes after freeze
 
-#### Summary generation (F5 — pattern detection)
+#### Forge ingest (F5 — replaces summary.yml)
 
-After report.yml and state freeze, Leader generates/updates `.claude/runs/summary.yml`:
+After report.yml and state freeze, Leader ingests run data into Forge:
 
-1. Read `.claude/runs/summary.yml` (if exists)
-2. Read current run's events.yml + report.yml
-3. Extract notable events:
-   - `scope_drift` events → pattern type `scope_drift`
-   - High retry count (agent retries ≥ 2) → pattern type `retry_heavy`
-   - Team composition + success rate → pattern type `team_success`
-4. Update pattern counts (increment occurrences, update last_seen)
-5. Apply promotion rules:
-   - Occurrence 1: logged in events.yml only (not added to summary.yml)
-   - Occurrence 2: added to summary.yml (action: `note`)
-   - Occurrence 3+: action promoted to `warn_on_spawn`
-6. Update stats (rolling average over last 10 runs)
-7. Write updated summary.yml
-
-```yaml
-project: "{project-root}"
-runs_analyzed: {count, max 10}
-last_updated: "{YYYY-MM-DD}"
-
-patterns:
-  - type: scope_drift | retry_heavy | team_success
-    agent: "{agent-name}"           # scope_drift, retry_heavy
-    file: "{file-path}"             # scope_drift
-    config: "{model-mix}"           # team_success
-    complexity: SIMPLE | MEDIUM | COMPLEX  # team_success
-    occurrences: {N}
-    first_seen: "{run-id}"
-    last_seen: "{run-id}"
-    action: note | warn_on_spawn | recommend
-    avg_retries: {N}                # retry_heavy
-    success_rate: {0.0-1.0}         # team_success
-
-stats:
-  avg_duration_min: {N}
-  avg_success_rate: {0.0-1.0}
-  avg_retries: {N}
-  most_common_team: "{model-mix}"
+```bash
+# Ingest current run data into forge.db
+forge ingest --workspace "$WORKSPACE" --run-dir "$RUN_DIR" 2>/dev/null || {
+    echo "Warning: forge ingest failed." >&2
+}
 ```
 
-Summary scope: last 10 runs (sliding window). Patterns that don't recur age out naturally.
+Forge handles all pattern detection and learning:
+- `scope_drift` events → Failure entries with Q-value tracking
+- High retry counts → Failure entries (near_miss quality)
+- Team composition + success rate → TeamRun + Knowledge entries
+- Q-value EMA provides superior ranking vs simple occurrence counting
+- Global promotion when patterns appear across multiple workspaces
+
+No summary.yml is generated or maintained. Forge is the single source of truth.
 
 #### Lifecycle cleanup
 

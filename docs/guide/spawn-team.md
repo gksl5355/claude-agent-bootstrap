@@ -58,8 +58,8 @@ Shows plan + team + experience brief without creating agents or run directories.
 
 ## Experience Brief
 
-If `summary.yml` exists from past runs, spawn shows:
-- Patterns with 3+ occurrences (scope drift, retry issues)
+If past runs exist with learning data, spawn shows:
+- Patterns learned via Forge (scope drift, retry issues)
 - Proven team configs for similar complexity
 - Average duration and success rate
 

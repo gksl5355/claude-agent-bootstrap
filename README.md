@@ -1,3 +1,5 @@
+> **Note:** The learning and data layer of Team Orchestrator has been migrated to [Project Forge](https://github.com/gksl5355/project-forge). This repo contains Claude Code skill definitions (SKILL.md) and orchestration docs. For experience tracking, team recommendations, and optimization, use Forge.
+
 # Team Orchestrator
 
 [🇰🇷 한국어](README.ko.md)

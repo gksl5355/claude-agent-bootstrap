@@ -69,7 +69,7 @@ Done (no run artifacts)  ▼                     ▼
                                 ▼
                     ┌─ Step 8: Execution Loop ──────────┐
                     │  Implement → Test → Fix → Merge   │
-                    │  → report.yml + summary.yml        │
+                    │  → report.yml + forge ingest       │
                     └──────────────────────────────────┘
 ```
 
